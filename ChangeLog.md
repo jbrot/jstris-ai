@@ -1,3 +1,3 @@
-# Changelog for tetris
+# Changelog for jstris-ai
 
 ## Unreleased changes

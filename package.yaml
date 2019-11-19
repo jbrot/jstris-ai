@@ -1,6 +1,6 @@
-name:                tetris
+name:                jstris-ai
 version:             0.1.0.0
-github:              "jbrot/tetris"
+github:              "jbrot/jstris-ai"
 license:             GPL-3
 author:              "Joshua Brot"
 maintainer:          "jbrot@umich.edu"
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/jbrot/tetris#readme>
+description:         Please see the README on GitHub at <https://github.com/jbrot/jstris-ai#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -27,7 +27,7 @@ library:
   source-dirs: src
 
 executables:
-  tetris-exe:
+  jstris-ai-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -35,15 +35,4 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - tetris
-
-tests:
-  tetris-test:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - tetris
+    - jstris-ai
