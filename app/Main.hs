@@ -1,6 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
-import Lib
+import Test.WebDriver
+
+chromeConfig :: WDConfig
+chromeConfig = useBrowser chrome defaultConfig
 
 main :: IO ()
-main = someFunc
+main = runSession chromeConfig . finallyClose $ do
+    openPage "https://google.com"
+    searchInput <- findElem ( ByCSS "input[type='text']")
+    sendKeys "Hello, World!" searchInput
+    submit searchInput
+    closeSession
