@@ -79,6 +79,9 @@ parseFrame cs = go 0 0 cs
           go row col (r:g:b:a:colors) = let (rr:rs) =  go row (col + 1) colors in (parseSquare r g b : rr):rs
           go _ _ _ = [[]]
 
+tagArray :: [[a]] -> [[((Int, Int), a)]]
+tagArray = fmap (\(r, bs) -> fmap (\(c,v) -> ((r,c),v)) bs) . zip [1..] . fmap (zip [1..])
+
 -- Finds the coordinates that have a shadow in them.
 shadowIndexes :: [[Square]] -> [(Int, Int)]
 shadowIndexes = mconcat . fmap (\(a,bs) -> fmap ((,) a) bs) . filter (not . null . snd) . zip [1..] . fmap rowIndexes
