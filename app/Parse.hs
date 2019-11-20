@@ -15,6 +15,15 @@ data Square = Empty | Garbage
                   | Z | ZShadow
     deriving Eq
 
+idMap = [ ( 0, I)
+        , ( 4, J)
+        , ( 3, L)
+        , ( 1, O)
+        , ( 5, S)
+        , ( 2, T)
+        , ( 6, Z)
+        ]
+
 -- This should probably be turned into a better structure than a list of tuples.
 colorMap = [ ((  0,  0,  0), Empty)
            , ((153,153,153), Garbage)
@@ -52,7 +61,7 @@ charMap = [ (' ', Empty)
           ]
 
 parseSquare :: Int -> Int -> Int -> Square
-parseSquare r g b = snd . head . filter ((== (r,g,b)) . fst) $ colorMap
+parseSquare r g b = head . (<> [Empty]) . fmap snd . filter ((== (r,g,b)) . fst) $ colorMap
 
 renderSquare :: Square -> (Int, Int, Int)
 renderSquare c = fst . head . filter ((== c) . snd) $ colorMap

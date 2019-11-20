@@ -18,18 +18,12 @@ import AI
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
 
+inGame :: WD Bool
+inGame = not <$> executeJS [] "return window.game == null || window.game.gameEnded"
+
 waitForGameStart :: WD ()
 waitForGameStart = waitUntil' 10000 600 $ do
-    -- Jstris puts several overlays over the game with the class "gCapt"
-    -- Once they all disappear, the game has started
-    -- So, we simply wait for all of the elements with the class "gCapt" to have "display: none" set.
-    -- However, if not all of the overlays have been created, all of the current overlays may be invisible, but the game has not yet started
-    -- So, we also need to wait for there to be exactly 3 overlays
-    capts <- findElems ( ByCSS "#stage .gCapt" )
-    expect $ length capts == 3
-    disp <- sequence .  fmap (\e -> cssProp e "display") $ capts
-    expect . all (maybe True (== "none")) $ disp
-    
+    expect =<< inGame
 
 -- Given a frame index, waits for a higher frame index and then retrieves the associated frame.
 getNextFrame :: Int -> WD (Int, [[Square]])
@@ -42,7 +36,9 @@ getNextFrame curr = waitUntil' 10000 10 $ do
 mainLoop :: WD ()
 mainLoop = runStateT (go 0) defaultState >> return ()
     where go :: Int -> StateT AIState WD Int
-          go curr = do
+          go curr = guardInGame $ do
+              notDone <- lift inGame
+
               (curr', frame) <- lift . getNextFrame $ curr
               liftIO . putStrLn . show $ curr'
               liftIO . printFrame . filterInactive $ frame
@@ -54,6 +50,11 @@ mainLoop = runStateT (go 0) defaultState >> return ()
               sendKeys keys body
               
               go curr'
+          guardInGame act = do
+              running <- lift inGame
+              if running
+                 then act
+                 else pure 0
 
 main :: IO ()
 main = runSession chromeConfig . finallyClose $ do
@@ -68,7 +69,8 @@ main = runSession chromeConfig . finallyClose $ do
     waitForGameStart
     liftIO $ putStrLn "Game starting!"
 
-    mainLoop
+    sequence . repeat $ mainLoop
+    pure ()
 
 -- This is a JS function to inject, which will get the color at the center of each square in the canvas
 extractColorsJS :: Text
@@ -77,9 +79,11 @@ extractColorsJS = " var ctx = arguments[0].getContext('webgl'); \
                   \ var height = arguments[2]; \
                   \ window.pbuffer = new Uint8Array(4 * width * height); \
                   \ window.pcount = 0; \
+                  \ window.game = null; \
                   \ var cc = Game.prototype.redraw; \
                   \ Game.prototype.redraw = function() { \
                   \     cc.apply(this,arguments); \
+                  \     window.game = this; \
                   \     ctx.readPixels(0, 0, width, height, ctx.RGBA, ctx.UNSIGNED_BYTE, window.pbuffer); \
                   \     var iter = function*() { \
                   \         var NUM_COLS = 10; \
