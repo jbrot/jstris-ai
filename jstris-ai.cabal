@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c67cc2295ad16eb11c9ca27c3de4a3d6ec70c8333e4364c858f60b8d3e2c101b
+-- hash: 4b4f96f93679fb07018fb544322e6c5553c0a8d73bcfd30ba798da38424ca0a5
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , mtl
     , text
     , webdriver
   default-language: Haskell2010
@@ -41,6 +42,7 @@ library
 executable jstris-ai-exe
   main-is: Main.hs
   other-modules:
+      AI
       Parse
       Paths_jstris_ai
   hs-source-dirs:
@@ -49,6 +51,7 @@ executable jstris-ai-exe
   build-depends:
       base >=4.7 && <5
     , jstris-ai
+    , mtl
     , text
     , webdriver
   default-language: Haskell2010

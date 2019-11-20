@@ -5,12 +5,15 @@ module Main where
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.State
 import Data.Text (Text)
+import qualified Data.Text.IO as T
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
 
 import Parse
+import AI
 
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
@@ -37,12 +40,19 @@ getNextFrame curr = waitUntil' 10000 10 $ do
     return (count, parseFrame display)
 
 mainLoop :: WD ()
-mainLoop = go 0 >> return ()
-    where go :: Int -> WD Int
+mainLoop = runStateT (go 0) defaultState >> return ()
+    where go :: Int -> StateT AIState WD Int
           go curr = do
-              (curr', frame) <- getNextFrame curr
+              (curr', frame) <- lift . getNextFrame $ curr
               liftIO . putStrLn . show $ curr'
-              liftIO $ printFrame frame
+              liftIO . printFrame . filterInactive $ frame
+
+              keys <- fmap (mconcat . fmap actionToText) . runAI . filterInactive $ frame
+              liftIO . T.putStrLn $ "Keys: " <> keys
+
+              body <- findElem ( ByTag "body" )
+              sendKeys keys body
+              
               go curr'
 
 main :: IO ()

@@ -1,5 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Parse where
 
+import Data.Text (Text)
+import qualified Test.WebDriver.Common.Keys as K
 import Text.Printf
 
 data Square = Empty | Garbage 
@@ -57,6 +60,16 @@ renderSquare c = fst . head . filter ((== c) . snd) $ colorMap
 renderChar :: Square -> Char
 renderChar c = fst . head . filter ((== c) . snd) $ charMap
 
+isShadow :: Square -> Bool
+isShadow IShadow = True 
+isShadow JShadow = True
+isShadow LShadow = True
+isShadow OShadow = True
+isShadow SShadow = True
+isShadow TShadow = True
+isShadow ZShadow = True
+isShadow _ = False
+
 -- Parses the raw pixel data into a 20 x 10 grid of Squares.
 parseFrame :: [Int] -> [[Square]]
 parseFrame cs = go 0 0 cs
@@ -66,6 +79,30 @@ parseFrame cs = go 0 0 cs
           go row col (r:g:b:a:colors) = let (rr:rs) =  go row (col + 1) colors in (parseSquare r g b : rr):rs
           go _ _ _ = [[]]
 
+-- Finds the coordinates that have a shadow in them.
+shadowIndexes :: [[Square]] -> [(Int, Int)]
+shadowIndexes = mconcat . fmap (\(a,bs) -> fmap ((,) a) bs) . filter (not . null . snd) . zip [1..] . fmap rowIndexes
+    where rowIndexes :: [Square] -> [Int]
+          rowIndexes = fmap fst . filter (isShadow . snd) . zip [1..]
+
+-- Eliminates shadow and replaces the non-moving parts with garbage.
+-- May not always work.
+filterInactive :: [[Square]] -> [[Square]]
+filterInactive cs = fmap (\(r,xs) -> fmap proc . zip ((,) r <$> [1..]) $ xs) . zip [1..] $ cs
+    where sinds = let l = shadowIndexes cs in if null l then [(0,0)] else l
+          minCol = minimum (snd <$> sinds)
+          maxCol = maximum (snd <$> sinds)
+          minRow = minimum (fst <$> sinds)
+          proc :: ((Int, Int), Square) -> Square
+          proc (_, Empty) = Empty
+          proc (_, Garbage) = Garbage
+          proc ((row, col), c)
+            | isShadow c    = Empty
+            | row >= minRow = Garbage 
+            | col < minCol  = Garbage
+            | col > maxCol  = Garbage
+            | otherwise     = c
+
 -- Print the given frame to the terminal, assuming 24 bit color is supported.
 -- Without 24 bit color, this will print nonsense.
 printFrame :: [[Square]] -> IO ()
@@ -74,3 +111,14 @@ printFrame = (>> return ()) . sequence . fmap printRow
         printChar c = let (r,g,b) = renderSquare c in printf "\x1b[48;2;%d;%d;%dm%c" r g b (renderChar c)
         printRow :: [Square] -> IO ()
         printRow = (>> printf "\x1b[0m\n") . sequence . fmap printChar
+
+data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
+
+actionToText :: Action -> Text
+actionToText MoveLeft    = K.arrowLeft
+actionToText MoveRight   = K.arrowRight
+actionToText SoftDrop    = K.arrowDown
+actionToText HardDrop    = " "
+actionToText RotateLeft  = "z"
+actionToText RotateRight = K.arrowUp
+actionToText Hold        = "c"
