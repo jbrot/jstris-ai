@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b8cd8e25e849174eec30c7ab595c9ea00461b90372705e6621df790dbdcfcdbb
+-- hash: c67cc2295ad16eb11c9ca27c3de4a3d6ec70c8333e4364c858f60b8d3e2c101b
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -41,6 +41,7 @@ library
 executable jstris-ai-exe
   main-is: Main.hs
   other-modules:
+      Parse
       Paths_jstris_ai
   hs-source-dirs:
       app
