@@ -76,15 +76,11 @@ extractColorsJS = " var ctx = arguments[0].getContext('webgl'); \
                   \ var width = arguments[1]; \
                   \ var height = arguments[2]; \
                   \ window.pbuffer = new Uint8Array(4 * width * height); \
-                  \ var cc = ctx.drawArrays; \
-                  \ ctx.drawArrays = function() { \
+                  \ window.pcount = 0; \
+                  \ var cc = Game.prototype.redraw; \
+                  \ Game.prototype.redraw = function() { \
                   \     cc.apply(this,arguments); \
                   \     ctx.readPixels(0, 0, width, height, ctx.RGBA, ctx.UNSIGNED_BYTE, window.pbuffer); \
-                  \ }; \
-                  \ window.pcount = 0; \
-                  \ var cc2 = ctx.clear; \
-                  \ ctx.clear = function() { \
-                  \     cc2.apply(this, arguments); \
                   \     var iter = function*() { \
                   \         var NUM_COLS = 10; \
                   \         var NUM_ROWS = 20; \
@@ -101,4 +97,4 @@ extractColorsJS = " var ctx = arguments[0].getContext('webgl'); \
                   \     }(); \
                   \     window.pixels = new Uint8Array(iter); \
                   \     window.pcount += 1; \
-                  \ }; "
+                  \ };"
