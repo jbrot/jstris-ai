@@ -20,9 +20,12 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/jbrot/jstris-ai#readme>
 
 dependencies:
+- aeson
 - base >= 4.7 && < 5
+- containers
 - mtl
 - text
+- vector
 - webdriver
 
 library:

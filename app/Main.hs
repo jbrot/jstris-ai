@@ -6,14 +6,51 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.State
+import Data.Aeson
 import Data.Text (Text)
 import qualified Data.Text.IO as T
+import Data.Vector (Vector)
+import qualified Data.Vector as V
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
 
-import Parse
+import qualified Parse as P
 import AI
+import Tetris
+
+idsToBlock :: Map Int Block
+idsToBlock = M.fromList [ (0, I)
+                        , (1, O)
+                        , (2, T)
+                        , (3, L)
+                        , (4, J)
+                        , (5, S)
+                        , (6, Z)
+                        ]
+
+colorsToSquare :: Map Int Square
+colorsToSquare = M.fromList [ (0, Empty)
+                            , (1, Remnant Z)
+                            , (2, Remnant L)
+                            , (3, Remnant O)
+                            , (4, Remnant S)
+                            , (5, Remnant I)
+                            , (6, Remnant J)
+                            , (7, Remnant T)
+                            , (8, Garbage)
+                            , (9, Garbage)
+                            ]
+
+instance FromJSON ActiveBlock where
+    parseJSON (Object v) = ActiveBlock <$> fmap (idsToBlock M.!) (v .: "id")
+                                       <*> (parsePos =<< v.: "pos")
+                                       <*> v .: "rot"
+        where parsePos (Object v) = (,) <$> v .: "y" <*> v .: "x"
+              parsePos _ = mzero
+    parseJSON _ = mzero
 
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
@@ -26,12 +63,20 @@ waitForGameStart = waitUntil' 10000 600 $ do
     expect =<< inGame
 
 -- Given a frame index, waits for a higher frame index and then retrieves the associated frame.
-getNextFrame :: Int -> WD (Int, [[Square]])
+getNextFrame :: Int -> WD (Int, [[P.Square]], GameState)
 getNextFrame curr = waitUntil' 10000 10 $ do
     count <- executeJS [] "return window.pcount;"
     expect $ count > curr
-    display <- executeJS [] "return window.pixels;"
-    return (count, parseFrame display)
+    frame <- P.parseFrame <$> executeJS [] "return window.pixels;"
+
+    matrix <- executeJS [] "return window.game.matrix"
+    act    <- executeJS [] "return window.game.activeBlock"
+    hld    <- executeJS [] "return window.game.blockInHold"
+    q      <- executeJS [] "return window.game.queue"
+    let brd = fmap (colorsToSquare M.!) . mconcat $ matrix
+        gs = GameState brd act (kind <$> hld) (kind <$> q)
+
+    return (count, frame, gs)
 
 mainLoop :: WD ()
 mainLoop = runStateT (go 0) defaultState >> return ()
@@ -39,16 +84,18 @@ mainLoop = runStateT (go 0) defaultState >> return ()
           go curr = guardInGame $ do
               notDone <- lift inGame
 
-              (curr', frame) <- lift . getNextFrame $ curr
+              (curr', frame, state) <- lift . getNextFrame $ curr
               liftIO . putStrLn . show $ curr'
-              liftIO . printFrame . filterInactive $ frame
+              liftIO . P.printFrame $ frame
+              liftIO $ putStrLn ""
+              liftIO . printBoard . renderBlock (active state) . board $ state 
 
-              keys <- fmap (mconcat . fmap actionToText) . runAI . filterInactive $ frame
+              keys <- fmap (mconcat . fmap P.actionToText) . runAI . P.filterInactive $ frame
               liftIO . T.putStrLn $ "Keys: " <> keys
 
               body <- findElem ( ByTag "body" )
               sendKeys keys body
-              
+
               go curr'
           guardInGame act = do
               running <- lift inGame
