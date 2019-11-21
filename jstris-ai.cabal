@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d456396a352dd4db366f412f2a4ca2e14daf45cce5f3cd248e519ff37054380d
+-- hash: 1514e0215ce32f9434898fc9c4dcf1164cb91be623b5e4fe0aa1a8aebdb920e7
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      AI
       Tetris
   other-modules:
       Paths_jstris_ai
@@ -45,7 +46,6 @@ library
 executable jstris-ai-exe
   main-is: Main.hs
   other-modules:
-      AI
       Parse
       Paths_jstris_ai
   hs-source-dirs:
