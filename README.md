@@ -11,6 +11,10 @@ I've hard coded a lot of assumptions about the DOM of Jstris and how it renders.
 These assumptions hold on my computer when I'm writing this program, but there are no guarantees that they will continue to hold on another computer, or in the future.
 If you're trying to build this, good luck!
 
+# Attribution
+
+The AI right now is almost an exact clone of the [Lee Yiyuan's AI](https://github.com/LeeYiyuan/tetrisai).
+
 # Building
 
 This program is built with [Stack](https://docs.haskellstack.org/en/stable/README/).

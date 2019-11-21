@@ -1,3 +1,5 @@
+-- The actual tetris AI.
+-- Heavily inspired by Lee Yiyuan's AI (https://github.com/LeeYiyuan/tetrisai).
 module AI where
 
 import Control.Monad.State
@@ -5,12 +7,11 @@ import Data.List
 
 import Tetris
 
-data AIState = AIState Bool
+data AIState = AIState
   deriving Show
 
--- Proof of Concept AI. Alternate dropping things on the left and right edge.
 defaultState :: AIState
-defaultState = AIState False
+defaultState = AIState
 
 runAI :: MonadIO m => GameState -> StateT AIState m [Action]
 runAI state = pure . (<> [ HardDrop ]) . fst . maximumBy (\a b -> compare (snd a) (snd b)) . fmap (fmap score) . possibleMoves $ state
