@@ -21,6 +21,32 @@ import AI
 import Parse
 import Tetris
 
+-- An example GameState for debugging
+exMatrix = [ [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+           , [ 8, 8, 8, 8, 8, 0, 8, 8, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 8, 0, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 0, 8, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 0, 8, 8, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 8, 8, 0, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 8, 0, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 0, 8, 8, 8 ]
+           , [ 8, 8, 8, 8, 8, 8, 8, 8, 0, 8 ]
+           , [ 8, 8, 8, 0, 8, 8, 8, 8, 8, 8 ]
+           ]
+exBrd = V.fromList . fmap (colorsToSquare M.!) . mconcat $ exMatrix
+exAct = ActiveBlock Z (-1, 3) 0
+exState = GameState exBrd exAct Nothing []
+
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
 
@@ -52,11 +78,11 @@ mainLoop = runStateT (go 0) defaultState >> return ()
               (curr', state) <- lift . nextState $ curr
               liftIO . printBoard . addActiveBlock (board state) . active $ state 
 
-              keys <- fmap (mconcat . fmap actionToText) . runAI $ state
-              liftIO . T.putStrLn $ "Keys: " <> keys
+              keys <- runAI state
+              liftIO . putStrLn $ "Keys: " <> show keys
 
               body <- findElem ( ByTag "body" )
-              sendKeys keys body
+              sendKeys (mconcat . fmap actionToText $ keys) body
 
               go curr'
           guardInGame act = do
@@ -77,6 +103,9 @@ main = runSession chromeConfig . finallyClose $ do
 
     sequence . repeat $ mainLoop
     pure ()
+
+-- An alternate main which runs the AI on the example state
+-- main = print =<< runStateT (runAI exState) defaultState
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly

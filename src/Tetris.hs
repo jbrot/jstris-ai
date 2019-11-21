@@ -43,7 +43,9 @@ getSquare :: Pos -> Board -> Square
 getSquare p b = b V.! (boardIndex p)
 
 isEmpty :: Board -> Pos -> Bool
-isEmpty b p = maybe True (== Empty) $ b V.!? (boardIndex p)
+isEmpty b p = if boardIndex p < 0
+                 then True
+                 else maybe False (== Empty) $ b V.!? (boardIndex p)
 
 -- Are all the spaces occupied by the ActiveBlock empty?
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
@@ -57,7 +59,7 @@ addActiveBlock board block = board V.// (filter (\(i,_) -> (i >= 0) && (i < 200)
 
 -- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
 dropPosition :: Board -> ActiveBlock -> ActiveBlock
-dropPosition board block@ActiveBlock{ pos = p } = block { pos = fromJust $ iterate p }
+dropPosition board block@ActiveBlock{ pos = p } = block { pos = maybe p id $ iterate p }
   where iterate :: Pos -> Maybe Pos
         iterate (r,c) = if canAddActiveBlock board (block { pos = (r,c) })
                            then maybe (Just (r,c)) Just $ iterate (r + 1,c) 
@@ -73,6 +75,7 @@ data GameState = GameState { board :: Board
                            }
 
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
+  deriving Show
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
@@ -110,7 +113,7 @@ rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])
                     , ((J, 2), [ (2,0), (2,1), (2,2), (3,2) ])
                     , ((J, 3), [ (3,0), (3,1), (2,1), (1,1) ])
 
-                    , ((L, 0), [ (1,3), (2,0), (2,1), (2,2) ])
+                    , ((L, 0), [ (1,2), (2,0), (2,1), (2,2) ])
                     , ((L, 1), [ (1,1), (3,2), (2,1), (3,1) ])
                     , ((L, 2), [ (2,0), (2,1), (2,2), (3,0) ])
                     , ((L, 3), [ (1,0), (3,1), (2,1), (1,1) ])
@@ -120,7 +123,7 @@ rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])
                     , ((O, 2), [ (1,1), (1,2), (2,1), (2,2) ])
                     , ((O, 3), [ (1,1), (1,2), (2,1), (2,2) ])
 
-                    , ((S, 0), [ (2,0), (2,1), (1,1), (1,3) ])
+                    , ((S, 0), [ (2,0), (2,1), (1,1), (1,2) ])
                     , ((S, 1), [ (1,1), (2,1), (2,2), (3,2) ])
                     , ((S, 2), [ (3,0), (3,1), (2,1), (2,2) ])
                     , ((S, 3), [ (1,0), (2,0), (2,1), (3,1) ])
