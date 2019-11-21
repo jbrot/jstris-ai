@@ -2,13 +2,14 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords
               , Square (Empty, Garbage, Remnant)
-              , Board, boardIndex, getSquare, isEmpty, addActiveBlock, printBoard
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, printBoard
               , GameState (GameState), board, active, held, queue
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold)
               ) where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Maybe
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Text.Printf
@@ -44,9 +45,26 @@ getSquare p b = b V.! (boardIndex p)
 isEmpty :: Board -> Pos -> Bool
 isEmpty b p = maybe True (== Empty) $ b V.!? (boardIndex p)
 
-addActiveBlock :: ActiveBlock -> Board -> Board
-addActiveBlock block board = board V.// (filter (\(i,_) -> (i >= 0) && (i < 200)) updates)
+-- Are all the spaces occupied by the ActiveBlock empty?
+canAddActiveBlock :: Board -> ActiveBlock -> Bool 
+canAddActiveBlock board = and . fmap (isEmpty board) . getCoords
+
+-- Replaces the squares in the board the ActiveBlock occupies with the appropriate remnants.
+-- Does not check if spaces are overwritten.
+addActiveBlock :: Board -> ActiveBlock -> Board
+addActiveBlock board block = board V.// (filter (\(i,_) -> (i >= 0) && (i < 200)) updates)
     where updates = fmap (\p -> (boardIndex p, Remnant (kind block))) . getCoords $ block
+
+-- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
+dropPosition :: Board -> ActiveBlock -> ActiveBlock
+dropPosition board block@ActiveBlock{ pos = p } = block { pos = fromJust $ iterate p }
+  where iterate :: Pos -> Maybe Pos
+        iterate (r,c) = if canAddActiveBlock board (block { pos = (r,c) })
+                           then maybe (Just (r,c)) Just $ iterate (r + 1,c) 
+                           else Nothing
+
+dropBlock :: Board -> ActiveBlock -> Board
+dropBlock board = addActiveBlock board . dropPosition board
 
 data GameState = GameState { board :: Board
                            , active :: ActiveBlock

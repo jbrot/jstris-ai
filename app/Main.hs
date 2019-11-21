@@ -50,7 +50,7 @@ mainLoop = runStateT (go 0) defaultState >> return ()
     where go :: Int -> StateT AIState WD Int
           go curr = guardInGame $ do
               (curr', state) <- lift . nextState $ curr
-              liftIO . printBoard . addActiveBlock (active state) . board $ state 
+              liftIO . printBoard . addActiveBlock (board state) . active $ state 
 
               keys <- fmap (mconcat . fmap actionToText) . runAI $ state
               liftIO . T.putStrLn $ "Keys: " <> keys
