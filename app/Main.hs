@@ -59,7 +59,7 @@ waitForGameStart = waitUntil' 10000 600 $ do
 
 -- Given a frame index, waits for a higher frame index and then retrieves the associated frame.
 nextState :: Int -> WD (Int, GameState)
-nextState curr = waitUntil' 10000 10 $ do
+nextState curr = waitUntil' 10000 600 $ do
     count <- executeJS [] "return window.fcount;"
     expect $ count > curr
 
@@ -93,8 +93,7 @@ mainLoop = runStateT (go 0) defaultState >> return ()
 
 main :: IO ()
 main = runSession chromeConfig . finallyClose $ do
-    -- We're starting by targeting the Cheese Race.
-    openPage "https://jstris.jezevec10.com/?play=3&mode=1"
+    openPage "https://jstris.jezevec10.com/"
     ignoreReturn $ executeJS [] extractGameTrackFrameJS
 
     liftIO $ putStrLn "Waiting for game to start..."

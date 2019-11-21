@@ -14,7 +14,12 @@ defaultState :: AIState
 defaultState = AIState
 
 runAI :: MonadIO m => GameState -> StateT AIState m [Action]
-runAI state = pure . (<> [ HardDrop ]) . fst . maximumBy (\a b -> compare (snd a) (snd b)) . fmap (fmap score) . possibleMoves $ state
+runAI state = pure . (<> [ HardDrop ]) . fst . maximumBy (\a b -> compare (snd a) (snd b)) . fmap (recurseScore 1) . possibleMoves $ state
+    where recurseScore :: Int -> ([Action], Board) -> ([Action], Float)
+          recurseScore 0 x = fmap score x
+          recurseScore n (as, b) = ((,) as) . maximum . fmap (snd . recurseScore (n - 1)) . possibleMoves . nextState state $ b
+          nextState :: GameState -> Board -> GameState
+          nextState (GameState _ (ActiveBlock _ p r) h (q:qs)) b = GameState b (ActiveBlock q p r) h qs
 
 possibleMoves :: GameState -> [ ([Action], Board) ]
 possibleMoves (GameState board active _ _) = mconcat . fmap moves $ [0..3]
