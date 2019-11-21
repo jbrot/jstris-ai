@@ -13,7 +13,7 @@ If you're trying to build this, good luck!
 
 # Attribution
 
-The AI right now is almost an exact clone of the [Lee Yiyuan's AI](https://github.com/LeeYiyuan/tetrisai).
+The AI right now is almost an exact clone of [Lee Yiyuan's AI](https://github.com/LeeYiyuan/tetrisai).
 
 # Building
 
