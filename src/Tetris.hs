@@ -1,8 +1,8 @@
 module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
-              , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords
+              , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, printBoard
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, clearLines, printBoard
               , GameState (GameState), board, active, held, queue
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold)
               ) where
@@ -12,6 +12,7 @@ import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 import Text.Printf
 
 data Block = I | J | L | O | S | T | Z
@@ -30,6 +31,11 @@ data ActiveBlock = ActiveBlock { kind :: Block
 
 getCoords :: ActiveBlock -> [Pos]
 getCoords b = fmap (\(r,c) -> (r + (fst . pos $ b), c + (snd . pos $ b))) $ rotMap M.! (kind b, rot b)
+
+startingPosition :: Block -> ActiveBlock
+startingPosition b = ActiveBlock b (height b, 3) 0
+  where height I = -1
+        height _ = -2
 
 data Square = Empty | Garbage | Remnant Block
     deriving (Eq, Show)
@@ -67,6 +73,15 @@ dropPosition board block@ActiveBlock{ pos = p } = block { pos = maybe p id $ ite
 
 dropBlock :: Board -> ActiveBlock -> Board
 dropBlock board = addActiveBlock board . dropPosition board
+
+clearLines :: Board -> Board
+clearLines board = foldr remove board . filter complete . reverse $ [0..19] 
+    where complete :: Row -> Bool
+          complete r = null . filter (\c -> getSquare (r,c) board == Empty) $ [0..9]
+          remove :: Row -> Board -> Board
+          remove r = V.modify (\v -> do
+              MV.move (MV.slice 10 (10 * r) v) (MV.slice 0 (10 * r) v) 
+              MV.set (MV.slice 0 10 v) Empty)
 
 data GameState = GameState { board :: Board
                            , active :: ActiveBlock

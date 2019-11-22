@@ -13,12 +13,14 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
 
 import AI
 import Parse
+import Simulator
 import Tetris
 
 -- An example GameState for debugging
@@ -76,10 +78,10 @@ mainLoop = runStateT (go 0) defaultState >> return ()
     where go :: Int -> StateT AIState WD Int
           go curr = guardInGame $ do
               (curr', state) <- lift . nextState $ curr
-              liftIO . printBoard . addActiveBlock (board state) . active $ state 
+              -- liftIO . printBoard . addActiveBlock (board state) . active $ state 
 
               keys <- runAI state
-              liftIO . putStrLn $ "Keys: " <> show keys
+              -- liftIO . putStrLn $ "Keys: " <> show keys
 
               body <- findElem ( ByTag "body" )
               sendKeys (mconcat . fmap actionToText $ keys) body
@@ -96,15 +98,18 @@ main = runSession chromeConfig . finallyClose $ do
     openPage "https://jstris.jezevec10.com/"
     ignoreReturn $ executeJS [] extractGameTrackFrameJS
 
-    liftIO $ putStrLn "Waiting for game to start..."
-    waitForGameStart
-    liftIO $ putStrLn "Game starting!"
-
-    sequence . repeat $ mainLoop
+    sequence . repeat $ do
+        liftIO $ putStrLn "Waiting for game to start..."
+        waitForGameStart
+        liftIO $ putStrLn "Game starting!"
+        mainLoop
+        liftIO $ putStrLn "Game complete!"
     pure ()
 
--- An alternate main which runs the AI on the example state
--- main = print =<< runStateT (runAI exState) defaultState
+-- An alternate main which runs the AI on a simulated game.
+-- main =  do
+--     g <- getStdGen
+--     simulateAI g 10 defaultState
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly

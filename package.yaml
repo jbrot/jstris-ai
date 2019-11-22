@@ -23,7 +23,10 @@ dependencies:
 - aeson
 - base >= 4.7 && < 5
 - containers
+- MonadRandom
 - mtl
+- random
+- random-shuffle
 - text
 - vector
 - webdriver

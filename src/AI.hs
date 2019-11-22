@@ -19,7 +19,7 @@ runAI state = pure . (<> [ HardDrop ]) . fst . maximumBy (\a b -> compare (snd a
           recurseScore 0 x = fmap score x
           recurseScore n (as, b) = ((,) as) . maximum . fmap (snd . recurseScore (n - 1)) . possibleMoves . nextState state $ b
           nextState :: GameState -> Board -> GameState
-          nextState (GameState _ (ActiveBlock _ p r) h (q:qs)) b = GameState b (ActiveBlock q p r) h qs
+          nextState (GameState _ _ h (q:qs)) b = GameState b (startingPosition q) h qs
 
 possibleMoves :: GameState -> [ ([Action], Board) ]
 possibleMoves (GameState board active _ _) = mconcat . fmap moves $ [0..3]
@@ -43,7 +43,7 @@ height board c = (20 -) . minimum . (<> [20]) . filter (\r -> getSquare (r,c) bo
 completeLines :: Board -> Int
 completeLines board = length . filter complete $ [0..19]
     where complete :: Row -> Bool
-          complete r = null . filter (\c -> getSquare (r,c) board /= Empty) $ [0..9]
+          complete r = null . filter (\c -> getSquare (r,c) board == Empty) $ [0..9]
 
 holes :: Board -> Int
 holes board = sum (colHoles <$> [0..9])

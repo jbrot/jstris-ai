@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1514e0215ce32f9434898fc9c4dcf1164cb91be623b5e4fe0aa1a8aebdb920e7
+-- hash: cce0a8ee91eb5cd20c6d3229951f6d748d00c9d56929df82588462a86bc2873a
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -28,16 +28,20 @@ source-repository head
 library
   exposed-modules:
       AI
+      Simulator
       Tetris
   other-modules:
       Paths_jstris_ai
   hs-source-dirs:
       src
   build-depends:
-      aeson
+      MonadRandom
+    , aeson
     , base >=4.7 && <5
     , containers
     , mtl
+    , random
+    , random-shuffle
     , text
     , vector
     , webdriver
@@ -52,11 +56,14 @@ executable jstris-ai-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      MonadRandom
+    , aeson
     , base >=4.7 && <5
     , containers
     , jstris-ai
     , mtl
+    , random
+    , random-shuffle
     , text
     , vector
     , webdriver
