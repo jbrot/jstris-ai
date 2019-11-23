@@ -30,7 +30,7 @@ colorsToSquare = M.fromList [ (0, Empty)
                             , (6, Remnant J)
                             , (7, Remnant T)
                             , (8, Garbage)
-                            , (9, Garbage)
+                            , (9, HurryUp)
                             ]
 
 instance FromJSON ActiveBlock where

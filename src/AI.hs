@@ -41,9 +41,7 @@ height :: Board -> Col -> Int
 height board c = (20 -) . minimum . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
 
 completeLines :: Board -> Int
-completeLines board = length . filter complete $ [0..19]
-    where complete :: Row -> Bool
-          complete r = null . filter (\c -> getSquare (r,c) board == Empty) $ [0..9]
+completeLines board = length . filter (complete board) $ [0..19]
 
 holes :: Board -> Int
 holes board = sum (colHoles <$> [0..9])

@@ -1,8 +1,8 @@
 module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
-              , Square (Empty, Garbage, Remnant)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, rotateBlock, clearLines, printBoard
+              , Square (Empty, Garbage, Remnant, HurryUp)
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, printBoard
               , GameState (GameState), board, active, held, queue, garbage
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock
               ) where
@@ -37,7 +37,7 @@ startingPosition b = ActiveBlock b (height b, 3) 0
   where height I = -1
         height _ = -2
 
-data Square = Empty | Garbage | Remnant Block
+data Square = Empty | Garbage | Remnant Block | HurryUp
     deriving (Eq, Show)
 
 type Board = Vector Square
@@ -50,10 +50,10 @@ getSquare p b = b V.! (boardIndex p)
 
 isEmpty :: Board -> Pos -> Bool
 isEmpty b (r,c) 
-  | r <  0  = True
-  | r >= 20 = False
   | c <  0  = False
   | c >= 10 = False
+  | r <  0  = True
+  | r >= 20 = False
   | otherwise = b V.! boardIndex (r,c) == Empty
 
 -- Are all the spaces occupied by the ActiveBlock empty?
@@ -87,11 +87,12 @@ rotateBlock board dir def@(ActiveBlock k (r,c) rot) = maybe def id . listToMaybe
                             else kickMap M.! (J, rot, dir)
           candidates = fmap (\(ro,co) -> ActiveBlock k (r + ro, c + co) nrot) kicks
 
+complete :: Board -> Row -> Bool
+complete b r = null . V.filter (\s -> s == Empty || s == HurryUp) .  V.slice (10 * r) 10 $ b
+
 clearLines :: Board -> (Int, Board)
-clearLines board = foldr remove (0, board) . filter complete . reverse $ [0..19] 
-    where complete :: Row -> Bool
-          complete r = null . filter (\c -> getSquare (r,c) board == Empty) $ [0..9]
-          remove :: Row -> (Int, Board) -> (Int, Board)
+clearLines board = foldr remove (0, board) . filter (complete board) . reverse $ [0..19] 
+    where remove :: Row -> (Int, Board) -> (Int, Board)
           remove r (c, b) = (c + 1, V.modify (\v -> do
               MV.move (MV.slice 10 (10 * r) v) (MV.slice 0 (10 * r) v) 
               MV.set (MV.slice 0 10 v) Empty) b)
@@ -132,10 +133,12 @@ printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
         sqColor :: Square -> (Int, Int, Int)
         sqColor Empty = (0,0,0)
         sqColor Garbage = (115,115,115)
+        sqColor HurryUp = (106,106,106)
         sqColor (Remnant b) = colorMap M.! b
         sqChar :: Square -> Char
         sqChar Empty   = ' '
         sqChar Garbage = 'X'
+        sqChar HurryUp = 'X'
         sqChar (Remnant b) = head . show $ b
 
 colorMap :: Map Block (Int, Int, Int)

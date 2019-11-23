@@ -68,34 +68,39 @@ startingState :: RandomGen g => g -> SimulatorState
 startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue 0) leftOver 0 0
     where (active:queue, leftOver) = splitAt 6 . pieceQueue $ g
 
-cycleActive :: SimulatorState -> SimulatorState
-cycleActive state = state{gs = newGS, squeue = buffer }
+cycleActive :: SimulatorState -> Maybe SimulatorState
+cycleActive state = if canAddActiveBlock (board newGS) nact
+                       then Just state{gs = newGS, squeue = buffer }
+                       else Nothing
     where (n:q) = queue (gs state)
           (nq:buffer) = squeue state
+          nact = startingPosition n
           newGS = (gs state){ active = startingPosition n, queue = q <> [nq] }
 
-toggleHold :: SimulatorState -> SimulatorState
+toggleHold :: SimulatorState -> Maybe SimulatorState
 toggleHold state = case held (gs state) of
                      Nothing -> cycleActive . setHeld hld $ state
-                     Just k  -> setActive (startingPosition k) . setHeld hld $ state
+                     Just k  -> Just . setActive (startingPosition k) . setHeld hld $ state
   where hld = Just . kind . active . gs $ state 
 
-advance :: SimulatorState -> Action -> SimulatorState
-advance s Hold = toggleHold s
-advance s HardDrop = cycleActive . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
-advance s act = setActive (moveBlock (board . gs $ s)  act (active . gs $ s)) s
+advance :: Action -> SimulatorState -> Maybe SimulatorState
+advance Hold s = toggleHold s
+advance HardDrop s = cycleActive . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
+advance act s = Just $ setActive (moveBlock (board . gs $ s)  act (active . gs $ s)) s
 
-simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m ()
+simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m (Int, Int)
 simulateAI gen ct = evalStateT $ go ct st0
     where st0 = startingState gen
           disp :: MonadIO m => SimulatorState -> m ()
           disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
-          go :: MonadIO m => Int -> SimulatorState -> StateT AIState m ()
-          go 0 st = disp st 
+          go :: MonadIO m => Int -> SimulatorState -> StateT AIState m (Int, Int)
+          go 0 st = disp st >> pure (0, attacks st) 
           go n st' = do
               let (cleared, brd) = clearLines . board . gs $ st'
                   st = updateAttack cleared . setBoard brd $ st'
               disp st
               liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\n"
               actions <- runAI . gs $ st
-              go (n - 1) $ foldl advance st actions
+              case foldl (\st act -> advance act =<< st) (Just st) actions of
+                Just s -> go (n - 1) s
+                Nothing -> pure (n, attacks st)
