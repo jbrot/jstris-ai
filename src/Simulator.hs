@@ -26,6 +26,9 @@ setHeld b st@SimulatorState{gs = g} = st{gs = g{held = b}}
 setQueue :: [Block] -> SimulatorState -> SimulatorState
 setQueue q st@SimulatorState{gs = g} = st{gs = g{queue = q}}
 
+-- garbageHistogram = M.fromList [(1,84),(2,24),(3,6),(4,18),(5,3),(7,1),(10,3)]
+-- garbageTime = 3918
+
 updateAttack :: Int -> SimulatorState -> SimulatorState
 updateAttack cleared s = s{combo = cbo, attacks = atk}
     where cbo = if cleared > 0 then 1 + combo s else 0
@@ -62,7 +65,7 @@ pieceQueue :: RandomGen g => g -> [Block]
 pieceQueue = runIdentity . evalRandT (fmap mconcat . sequence . repeat . shuffleM $ [ I, J, L, O, S, T, Z ])
 
 startingState :: RandomGen g => g -> SimulatorState
-startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue) leftOver 0 0
+startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue 0) leftOver 0 0
     where (active:queue, leftOver) = splitAt 6 . pieceQueue $ g
 
 cycleActive :: SimulatorState -> SimulatorState

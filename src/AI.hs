@@ -19,10 +19,10 @@ runAI state = pure . (<> [ HardDrop ]) . fst . maximumBy (\a b -> compare (snd a
           recurseScore 0 x = fmap score x
           recurseScore n (as, b) = ((,) as) . maximum . fmap (snd . recurseScore (n - 1)) . possibleMoves . nextState state $ b
           nextState :: GameState -> Board -> GameState
-          nextState (GameState _ _ h (q:qs)) b = GameState b (startingPosition q) h qs
+          nextState (GameState _ _ h (q:qs) g) b = GameState b (startingPosition q) h qs g
 
 possibleMoves :: GameState -> [ ([Action], Board) ]
-possibleMoves (GameState board active _ _) = mconcat . fmap moves $ [0..3]
+possibleMoves (GameState board active _ _ _) = mconcat . fmap moves $ [0..3]
     where rotate :: ActiveBlock -> Int -> ActiveBlock
           rotate block@ActiveBlock{ rot = r } i = block{rot = (r + i) `mod` 4} 
           moves :: Int -> [([Action], Board)]

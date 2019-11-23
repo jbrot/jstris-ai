@@ -3,7 +3,7 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant)
               , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, rotateBlock, clearLines, printBoard
-              , GameState (GameState), board, active, held, queue
+              , GameState (GameState), board, active, held, queue, garbage
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock
               ) where
 
@@ -100,6 +100,7 @@ data GameState = GameState { board :: Board
                            , active :: ActiveBlock
                            , held :: Maybe Block
                            , queue :: [Block]
+                           , garbage :: Int
                            }
 
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold

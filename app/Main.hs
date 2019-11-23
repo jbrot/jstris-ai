@@ -47,7 +47,7 @@ exMatrix = [ [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
            ]
 exBrd = V.fromList . fmap (colorsToSquare M.!) . mconcat $ exMatrix
 exAct = ActiveBlock Z (-1, 3) 0
-exState = GameState exBrd exAct Nothing []
+exState = GameState exBrd exAct Nothing [] 0
 
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
@@ -71,7 +71,8 @@ nextState curr = waitUntil' 10000 600 $ do
     q      <- executeJS [] "return window.game.queue"
     inc    <- executeJS [] "return window.game.incomingGarbage"
     let brd = fmap (colorsToSquare M.!) . mconcat $ matrix
-        gs = GameState brd act (kind <$> hld) (kind <$> q)
+        garbage = sum . fmap head $ inc
+        gs = GameState brd act (kind <$> hld) (kind <$> q) garbage
     pure (count, gs, inc)
 
 type Lines = Map Int Int
