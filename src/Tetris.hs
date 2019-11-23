@@ -2,9 +2,9 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, clearLines, printBoard
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, rotateBlock, clearLines, printBoard
               , GameState (GameState), board, active, held, queue
-              , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold)
+              , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock
               ) where
 
 import Data.Map.Strict (Map)
@@ -49,9 +49,12 @@ getSquare :: Pos -> Board -> Square
 getSquare p b = b V.! (boardIndex p)
 
 isEmpty :: Board -> Pos -> Bool
-isEmpty b p = if boardIndex p < 0
-                 then True
-                 else maybe False (== Empty) $ b V.!? (boardIndex p)
+isEmpty b (r,c) 
+  | r <  0  = True
+  | r >= 20 = False
+  | c <  0  = False
+  | c >= 10 = False
+  | otherwise = b V.! boardIndex (r,c) == Empty
 
 -- Are all the spaces occupied by the ActiveBlock empty?
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
@@ -74,6 +77,16 @@ dropPosition board block@ActiveBlock{ pos = p } = block { pos = maybe p id $ ite
 dropBlock :: Board -> ActiveBlock -> Board
 dropBlock board = addActiveBlock board . dropPosition board
 
+-- True: rotates the block right, False: rotates left.
+-- This is actually reasonably complicated as it will resolve kicks.
+rotateBlock :: Board -> Bool -> ActiveBlock -> ActiveBlock
+rotateBlock board dir def@(ActiveBlock k (r,c) rot) = maybe def id . listToMaybe . filter (canAddActiveBlock board) $ candidates
+    where nrot = if dir then (rot + 1) `mod` 4 
+                        else (rot + 3) `mod` 4
+          kicks = if k == I then kickMap M.! (I, rot, dir)
+                            else kickMap M.! (J, rot, dir)
+          candidates = fmap (\(ro,co) -> ActiveBlock k (r + ro, c + co) nrot) kicks
+
 clearLines :: Board -> Board
 clearLines board = foldr remove board . filter complete . reverse $ [0..19] 
     where complete :: Row -> Bool
@@ -91,6 +104,23 @@ data GameState = GameState { board :: Board
 
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
   deriving Show
+
+-- Applies an action to a block.
+-- Does nothing if the specified Action is Hold.
+moveBlock :: Board -> Action -> ActiveBlock -> ActiveBlock
+moveBlock _ Hold a = a
+moveBlock b MoveLeft  a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
+                                                                             else a
+    where a' = a{pos = (r,c - 1)}
+moveBlock b MoveRight a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
+                                                                             else a
+    where a' = a{pos = (r,c + 1)}
+moveBlock b SoftDrop  a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
+                                                                             else a
+    where a' = a{pos = (r + 1,c)}
+moveBlock b HardDrop    a = dropPosition b a
+moveBlock b RotateLeft  a = rotateBlock b False a
+moveBlock b RotateRight a = rotateBlock b True a
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
@@ -153,3 +183,24 @@ rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])
                     , ((Z, 2), [ (3,2), (3,1), (2,1), (2,0) ])
                     , ((Z, 3), [ (3,0), (2,0), (2,1), (1,1) ])
                     ]
+
+-- True: right; False: left
+kickMap :: Map (Block, Rot, Bool) [Pos]
+kickMap = M.fromList [ ((I, 0, True),  [ (0,0), (-2,0), ( 1,0), (-2,-1), ( 1, 2) ])
+                     , ((I, 0, False), [ (0,0), (-1,0), ( 2,0), (-1, 2), ( 2,-1) ])
+                     , ((I, 1, True),  [ (0,0), (-1,0), ( 2,0), (-1, 2), ( 2,-1) ])
+                     , ((I, 1, False), [ (0,0), ( 2,0), (-1,0), ( 2, 1), (-1,-2) ])
+                     , ((I, 2, True),  [ (0,0), ( 2,0), (-1,0), ( 2, 1), (-1,-2) ])
+                     , ((I, 2, False), [ (0,0), ( 1,0), (-2,0), ( 1,-2), (-2, 1) ])
+                     , ((I, 3, True),  [ (0,0), ( 1,0), (-2,0), ( 1,-2), (-2, 1) ])
+                     , ((I, 3, False), [ (0,0), (-2,0), ( 1,0), (-2,-1), ( 1, 2) ])
+
+                     , ((J, 0, True),  [ (0,0), (-1,0), (-1, 1), (0,-2), (-1,-2) ])
+                     , ((J, 0, False), [ (0,0), ( 1,0), ( 1, 1), (0,-2), ( 1,-2) ])
+                     , ((J, 1, True),  [ (0,0), ( 1,0), ( 1,-1), (0, 2), ( 1, 2) ])
+                     , ((J, 1, False), [ (0,0), ( 1,0), ( 1,-1), (0, 2), ( 1, 2) ])
+                     , ((J, 2, True),  [ (0,0), ( 1,0), ( 1, 1), (0,-2), ( 1,-2) ])
+                     , ((J, 2, False), [ (0,0), (-1,0), (-1, 1), (0,-2), (-1,-2) ])
+                     , ((J, 3, True),  [ (0,0), (-1,0), (-1,-1), (0, 2), (-1, 2) ])
+                     , ((J, 3, False), [ (0,0), (-1,0), (-1,-1), (0, 2), (-1, 2) ])
+                     ]

@@ -20,36 +20,17 @@ startingState :: RandomGen g => g -> (GameState, [Block])
 startingState g = (GameState emptyBoard (startingPosition active) Nothing queue, leftOver)
     where (active:queue, leftOver) = splitAt 6 . pieceQueue $ g
 
-moveLeft :: ActiveBlock -> ActiveBlock
-moveLeft (ActiveBlock b (r,c) rot) = ActiveBlock b (r, c - 1) rot
-
-moveRight :: ActiveBlock -> ActiveBlock
-moveRight (ActiveBlock b (r,c) rot) = ActiveBlock b (r, c + 1) rot
-
-softDrop :: ActiveBlock -> ActiveBlock
-softDrop (ActiveBlock b (r,c) rot) = ActiveBlock b (r + 1, c) rot
-
 cycleActive :: (GameState, [Block]) -> (GameState, [Block])
 cycleActive (GameState board _ h (n:q), nq:buffer) = (GameState board (startingPosition n) h (q <> [nq]), buffer)
-
-rotateLeft :: ActiveBlock -> ActiveBlock
-rotateLeft (ActiveBlock b p rot) = ActiveBlock b p ((rot + 3) `mod` 4)
-
-rotateRight :: ActiveBlock -> ActiveBlock
-rotateRight (ActiveBlock b p rot) = ActiveBlock b p ((rot + 1) `mod` 4) 
 
 toggleHold :: (GameState, [Block]) -> (GameState, [Block])
 toggleHold  (GameState board a Nothing q, b) = cycleActive (GameState board a (Just . kind $ a) q, b)
 toggleHold  (GameState board a (Just k) q, b) = (GameState board (startingPosition k) (Just . kind $ a) q, b)
 
 advance :: (GameState, [Block]) -> Action -> (GameState, [Block])
-advance (g,b) MoveLeft = (g{active = moveLeft (active g)}, b)
-advance (g,b) MoveRight = (g{active = moveRight (active g)}, b)
-advance (g,b) SoftDrop = (g{active = softDrop (active g)}, b)
-advance (g,b) HardDrop = cycleActive (g{board=dropBlock (board g) (active g)},b)
-advance (g,b) RotateLeft = (g{active = rotateLeft (active g)}, b)
-advance (g,b) RotateRight = (g{active = rotateRight (active g)}, b)
 advance (g,b) Hold = toggleHold (g,b)
+advance (g,b) HardDrop = cycleActive (g{board=dropBlock (board g) (active g)},b)
+advance (g,b) act = (g{active = moveBlock (board g) act (active g)}, b)
 
 simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m ()
 simulateAI gen ct = evalStateT $ go ct st0

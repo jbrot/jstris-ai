@@ -94,22 +94,22 @@ mainLoop = runStateT (go 0) defaultState >> return ()
                  else pure 0
 
 main :: IO ()
-main = runSession chromeConfig . finallyClose $ do
-    openPage "https://jstris.jezevec10.com/"
-    ignoreReturn $ executeJS [] extractGameTrackFrameJS
-
-    sequence . repeat $ do
-        liftIO $ putStrLn "Waiting for game to start..."
-        waitForGameStart
-        liftIO $ putStrLn "Game starting!"
-        mainLoop
-        liftIO $ putStrLn "Game complete!"
-    pure ()
+-- main = runSession chromeConfig . finallyClose $ do
+--     openPage "https://jstris.jezevec10.com/"
+--     ignoreReturn $ executeJS [] extractGameTrackFrameJS
+-- 
+--     sequence . repeat $ do
+--         liftIO $ putStrLn "Waiting for game to start..."
+--         waitForGameStart
+--         liftIO $ putStrLn "Game starting!"
+--         mainLoop
+--         liftIO $ putStrLn "Game complete!"
+--     pure ()
 
 -- An alternate main which runs the AI on a simulated game.
--- main =  do
---     g <- getStdGen
---     simulateAI g 10 defaultState
+main =  do
+    g <- getStdGen
+    simulateAI g 1000 defaultState
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly
