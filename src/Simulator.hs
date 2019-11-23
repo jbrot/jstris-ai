@@ -26,6 +26,35 @@ setHeld b st@SimulatorState{gs = g} = st{gs = g{held = b}}
 setQueue :: [Block] -> SimulatorState -> SimulatorState
 setQueue q st@SimulatorState{gs = g} = st{gs = g{queue = q}}
 
+updateAttack :: Int -> SimulatorState -> SimulatorState
+updateAttack cleared s = s{combo = cbo, attacks = atk}
+    where cbo = if cleared > 0 then 1 + combo s else 0
+          cboLines = case cbo - 1 of
+                       -1 -> 0
+                       0  -> 0
+                       1  -> 0
+                       2  -> 1
+                       3  -> 1
+                       4  -> 1
+                       5  -> 2
+                       6  -> 2
+                       7  -> 3
+                       8  -> 3
+                       9  -> 4
+                       10 -> 4
+                       11 -> 4
+                       otherwise -> 5
+          clearedLines = case cleared of
+                           0 -> 0
+                           1 -> 0
+                           2 -> 1
+                           3 -> 2
+                           4 -> 4
+          perfectLines = if (null . V.filter (/= Empty) . board . gs $ s)
+                            then 10
+                            else 0
+          atk = cboLines + clearedLines + perfectLines + attacks s
+
 emptyBoard :: Board
 emptyBoard = V.replicate 200 Empty
 
@@ -62,7 +91,8 @@ simulateAI gen ct = evalStateT $ go ct st0
           go 0 st = disp st 
           go n st' = do
               let (cleared, brd) = clearLines . board . gs $ st'
-                  st = setBoard brd st'
+                  st = updateAttack cleared . setBoard brd $ st'
               disp st
+              liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\n"
               actions <- runAI . gs $ st
               go (n - 1) $ foldl advance st actions
