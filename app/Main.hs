@@ -60,7 +60,7 @@ waitForGameStart = waitUntil' 10000 600 $ do
     expect =<< inGame
 
 -- Given a frame index, waits for a higher frame index and then retrieves the associated frame.
-nextState :: Int -> WD (Int, GameState)
+nextState :: Int -> WD (Int, GameState, [[Int]])
 nextState curr = waitUntil' 10000 600 $ do
     count <- executeJS [] "return window.fcount;"
     expect $ count > curr
@@ -69,15 +69,20 @@ nextState curr = waitUntil' 10000 600 $ do
     act    <- executeJS [] "return window.game.activeBlock"
     hld    <- executeJS [] "return window.game.blockInHold"
     q      <- executeJS [] "return window.game.queue"
+    inc    <- executeJS [] "return window.game.incomingGarbage"
     let brd = fmap (colorsToSquare M.!) . mconcat $ matrix
         gs = GameState brd act (kind <$> hld) (kind <$> q)
-    pure (count, gs)
+    pure (count, gs, inc)
 
-mainLoop :: WD ()
-mainLoop = runStateT (go 0) defaultState >> return ()
-    where go :: Int -> StateT AIState WD Int
-          go curr = guardInGame $ do
-              (curr', state) <- lift . nextState $ curr
+type Lines = Map Int Int
+type Histogram = Map Int Int
+
+mainLoop :: WD (Lines, Int)
+mainLoop = fst <$> runStateT (go (0, (M.empty, 0))) defaultState
+    where go :: (Int, (Lines, Int)) -> StateT AIState WD (Lines, Int)
+          go = guardInGame $ \(curr, (h, pct)) -> do
+              (curr', state, inc) <- lift . nextState $ curr
+              let h' = foldr id h . fmap (\[size, id] -> M.insertWith (flip const) id size) $ inc
               -- liftIO . printBoard . addActiveBlock (board state) . active $ state 
 
               keys <- runAI state
@@ -86,23 +91,33 @@ mainLoop = runStateT (go 0) defaultState >> return ()
               body <- findElem ( ByTag "body" )
               sendKeys (mconcat . fmap actionToText $ keys) body
 
-              go curr'
-          guardInGame act = do
+              go (curr', (h', pct + 1))
+          guardInGame act p = do
               running <- lift inGame
               if running
-                 then act
-                 else pure 0
+                 then act p
+                 else pure . snd $ p
+
+updateHist :: Histogram -> Lines -> Histogram
+updateHist = M.foldr (\v -> M.insertWith (+) v 1)
 
 main :: IO ()
 main = runSession chromeConfig . finallyClose $ do
     openPage "https://jstris.jezevec10.com/"
     ignoreReturn $ executeJS [] extractGameTrackFrameJS
 
-    sequence . repeat $ do
+    flip execStateT (M.empty, 0) . sequence . repeat $ do
         liftIO $ putStrLn "Waiting for game to start..."
-        waitForGameStart
+        lift waitForGameStart
         liftIO $ putStrLn "Game starting!"
-        mainLoop
+        (hist, pcs) <- get
+        (lines, ct) <- lift mainLoop
+        if not (null lines) then do
+            let hist' = updateHist hist lines
+            put (hist', pcs + ct)
+            liftIO . print $ hist'
+            liftIO . print $ pcs + ct
+        else pure ()
         liftIO $ putStrLn "Game complete!"
     pure ()
 
