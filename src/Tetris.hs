@@ -87,14 +87,14 @@ rotateBlock board dir def@(ActiveBlock k (r,c) rot) = maybe def id . listToMaybe
                             else kickMap M.! (J, rot, dir)
           candidates = fmap (\(ro,co) -> ActiveBlock k (r + ro, c + co) nrot) kicks
 
-clearLines :: Board -> Board
-clearLines board = foldr remove board . filter complete . reverse $ [0..19] 
+clearLines :: Board -> (Int, Board)
+clearLines board = foldr remove (0, board) . filter complete . reverse $ [0..19] 
     where complete :: Row -> Bool
           complete r = null . filter (\c -> getSquare (r,c) board == Empty) $ [0..9]
-          remove :: Row -> Board -> Board
-          remove r = V.modify (\v -> do
+          remove :: Row -> (Int, Board) -> (Int, Board)
+          remove r (c, b) = (c + 1, V.modify (\v -> do
               MV.move (MV.slice 10 (10 * r) v) (MV.slice 0 (10 * r) v) 
-              MV.set (MV.slice 0 10 v) Empty)
+              MV.set (MV.slice 0 10 v) Empty) b)
 
 data GameState = GameState { board :: Board
                            , active :: ActiveBlock
