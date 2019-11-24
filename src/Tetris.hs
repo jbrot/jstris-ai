@@ -2,9 +2,9 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant, HurryUp)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, printBoard
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, validateAB, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, printBoard
               , GameState (GameState), board, active, held, queue, garbage
-              , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock
+              , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock, moveBlock'
               ) where
 
 import Data.Map.Strict (Map)
@@ -60,6 +60,9 @@ isEmpty b (r,c)
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
 canAddActiveBlock board = and . fmap (isEmpty board) . getCoords
 
+validateAB :: Board -> ActiveBlock -> Maybe ActiveBlock
+validateAB b a = if canAddActiveBlock b a then Just a else Nothing
+
 -- Replaces the squares in the board the ActiveBlock occupies with the appropriate remnants.
 -- Does not check if spaces are overwritten.
 addActiveBlock :: Board -> ActiveBlock -> Board
@@ -67,20 +70,18 @@ addActiveBlock board block = board V.// (filter (\(i,_) -> (i >= 0) && (i < 200)
     where updates = fmap (\p -> (boardIndex p, Remnant (kind block))) . getCoords $ block
 
 -- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
-dropPosition :: Board -> ActiveBlock -> ActiveBlock
-dropPosition board block@ActiveBlock{ pos = p } = block { pos = maybe p id $ iterate p }
-  where iterate :: Pos -> Maybe Pos
-        iterate (r,c) = if canAddActiveBlock board (block { pos = (r,c) })
-                           then maybe (Just (r,c)) Just $ iterate (r + 1,c) 
-                           else Nothing
+-- Will only return Nothing if the current position is invalid.
+dropPosition :: Board -> ActiveBlock -> Maybe ActiveBlock
+dropPosition board = fmap (\a@ActiveBlock{ pos = (r,c) } -> fromMaybe a . dropPosition board $ a{ pos = (r + 1, c) }) . validateAB board
 
 dropBlock :: Board -> ActiveBlock -> Board
-dropBlock board = addActiveBlock board . dropPosition board
+dropBlock board ab = addActiveBlock board . fromMaybe ab . dropPosition board $ ab
 
 -- True: rotates the block right, False: rotates left.
 -- This is actually reasonably complicated as it will resolve kicks.
-rotateBlock :: Board -> Bool -> ActiveBlock -> ActiveBlock
-rotateBlock board dir def@(ActiveBlock k (r,c) rot) = maybe def id . listToMaybe . filter (canAddActiveBlock board) $ candidates
+-- Returns Nothing if no rotation position is valid.
+rotateBlock :: Board -> Bool -> ActiveBlock -> Maybe ActiveBlock
+rotateBlock board dir def@(ActiveBlock k (r,c) rot) = listToMaybe . catMaybes . fmap (validateAB board) $ candidates
     where nrot = if dir then (rot + 1) `mod` 4 
                         else (rot + 3) `mod` 4
           kicks = if k == I then kickMap M.! (I, rot, dir)
@@ -109,20 +110,19 @@ data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRi
 
 -- Applies an action to a block.
 -- Does nothing if the specified Action is Hold.
-moveBlock :: Board -> Action -> ActiveBlock -> ActiveBlock
-moveBlock _ Hold a = a
-moveBlock b MoveLeft  a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
-                                                                             else a
-    where a' = a{pos = (r,c - 1)}
-moveBlock b MoveRight a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
-                                                                             else a
-    where a' = a{pos = (r,c + 1)}
-moveBlock b SoftDrop  a@ActiveBlock{pos = (r,c)} = if canAddActiveBlock b a' then a'
-                                                                             else a
-    where a' = a{pos = (r + 1,c)}
+-- Returns Nothing if the Action fails.
+moveBlock :: Board -> Action -> ActiveBlock -> Maybe ActiveBlock
+moveBlock _ Hold a = Just a
+moveBlock b MoveLeft  a@ActiveBlock{pos = (r,c)} = validateAB b a{pos = (r, c - 1) }
+moveBlock b MoveRight a@ActiveBlock{pos = (r,c)} = validateAB b a{pos = (r, c + 1) }
+moveBlock b SoftDrop  a@ActiveBlock{pos = (r,c)} = validateAB b a{pos = (r + 1, c) }
 moveBlock b HardDrop    a = dropPosition b a
 moveBlock b RotateLeft  a = rotateBlock b False a
 moveBlock b RotateRight a = rotateBlock b True a
+
+-- Same as moveBlock, but returns the given ActiveBlock if the Action fails.
+moveBlock' :: Board -> Action -> ActiveBlock -> ActiveBlock
+moveBlock' b a ab = fromMaybe ab (moveBlock b a ab)
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]

@@ -145,7 +145,7 @@ toggleHold state = case held (gs state) of
 advance :: MonadRandom m => Int -> Action -> SimulatorState -> m (Maybe SimulatorState)
 advance _ Hold s = pure (toggleHold s)
 advance n HardDrop s = fmap cycleActive . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
-advance _ act s = pure . Just . setActive (moveBlock (board . gs $ s)  act (active . gs $ s)) $ s
+advance _ act s = pure . Just . setActive (moveBlock' (board . gs $ s)  act (active . gs $ s)) $ s
 
 simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m (Int, Int)
 simulateAI gen ct = flip evalRandT g1 . evalStateT (go ct st0)
