@@ -103,29 +103,31 @@ updateHist :: Histogram -> Lines -> Histogram
 updateHist = M.foldr (\v -> M.insertWith (+) v 1)
 
 main :: IO ()
-main = runSession chromeConfig . finallyClose $ do
-    openPage "https://jstris.jezevec10.com/"
-    ignoreReturn $ executeJS [] extractGameTrackFrameJS
-
-    flip execStateT (M.empty, 0) . sequence . repeat $ do
-        liftIO $ putStrLn "Waiting for game to start..."
-        lift waitForGameStart
-        liftIO $ putStrLn "Game starting!"
-        (hist, pcs) <- get
-        (lines, ct) <- lift mainLoop
-        if not (null lines) then do
-            let hist' = updateHist hist lines
-            put (hist', pcs + ct)
-            liftIO . print $ hist'
-            liftIO . print $ pcs + ct
-        else pure ()
-        liftIO $ putStrLn "Game complete!"
-    pure ()
+-- main = runSession chromeConfig . finallyClose $ do
+--     openPage "https://jstris.jezevec10.com/"
+--     ignoreReturn $ executeJS [] extractGameTrackFrameJS
+-- 
+--     flip execStateT (M.empty, 0) . sequence . repeat $ do
+--         liftIO $ putStrLn "Waiting for game to start..."
+--         lift waitForGameStart
+--         liftIO $ putStrLn "Game starting!"
+--         (hist, pcs) <- get
+--         (lines, ct) <- lift mainLoop
+--         if not (null lines) then do
+--             let hist' = updateHist hist lines
+--             put (hist', pcs + ct)
+--             liftIO . print $ hist'
+--             liftIO . print $ pcs + ct
+--         else pure ()
+--         liftIO $ putStrLn "Game complete!"
+--     pure ()
 
 -- An alternate main which runs the AI on a simulated game.
--- main =  do
---     g <- getStdGen
---     simulateAI g 1000 defaultState
+main =  do
+    g <- getStdGen
+    (lft, atks) <- simulateAI g 1000 defaultState
+    putStrLn $ "Unplaced: " ++ (show lft) ++ "\n Lines Sent: " ++ (show atks)
+    pure ()
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly
