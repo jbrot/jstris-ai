@@ -125,8 +125,8 @@ main :: IO ()
 -- An alternate main which runs the AI on a simulated game.
 main =  do
     g <- getStdGen
-    (lft, atks) <- simulateAI g 1000 defaultState
-    putStrLn $ "Unplaced: " ++ (show lft) ++ "\n Lines Sent: " ++ (show atks)
+    (pcs, atks) <- simulateAI g 1000 defaultState
+    putStrLn $ "Placed: " ++ (show pcs) ++ "\nLines Sent: " ++ (show atks)
     pure ()
 
 -- This function injects some code into the render loop which lets us keep track

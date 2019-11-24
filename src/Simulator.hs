@@ -44,12 +44,13 @@ sampleHistogram h = fmap (\v -> fromJust . snd . foldr iterate (v, Nothing) $ h)
                                                   else (r - c, Nothing)
 
 addGarbageLines :: Int -> Col -> Board -> Board
-addGarbageLines n c = V.modify (\v -> do
-    let len = (20 - n) * 10
+addGarbageLines n c b = V.modify (\v -> do
+    let total = maybe 20 (`div` 10) . V.findIndex (== HurryUp) $ b
+        len = (total - n) * 10
     MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
     MV.set (MV.slice len (10 * n) v) Garbage
-    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) Empty) $ [(20 - n)..19]
-    pure ())
+    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) Empty) $ [(total - n)..(total - 1)]
+    pure ()) b
 
 queueGarbage :: MonadRandom m => SimulatorState -> m SimulatorState
 queueGarbage s = getRandomR (0, garbageTime) >>= \r -> 
@@ -91,7 +92,7 @@ updateAttack cleared s = s{combo = cbo, attacks = atk}
                            2 -> 1
                            3 -> 2
                            4 -> 4
-          perfectLines = if (null . V.filter (/= Empty) . board . gs $ s)
+          perfectLines = if (null . V.filter (\x -> x /= Empty) . board . gs $ s)
                             then 10
                             else 0
           atk = cboLines + clearedLines + perfectLines + attacks s
@@ -125,8 +126,14 @@ applyGarbage cleared state
               | r >= ct = (r - ct, [])
               | otherwise = (0, [(ct - r, cl)])
 
-advanceBoard :: MonadRandom m => SimulatorState -> m SimulatorState
-advanceBoard state = queueGarbage . applyGarbage cleared . updateAttack cleared . setBoard brd $ state
+applyHurryUp :: Int -> SimulatorState -> SimulatorState
+applyHurryUp n s
+  | n < 900 = s
+  | n `mod` 20 == 0 = setBoard (hurryUp 1 . board . gs $ s) s
+  | otherwise = s
+
+advanceBoard :: MonadRandom m => Int -> SimulatorState -> m SimulatorState
+advanceBoard n state = queueGarbage . applyHurryUp n . applyGarbage cleared . updateAttack cleared . setBoard brd $ state
     where (cleared, brd) = clearLines . board . gs $ state
 
 toggleHold :: SimulatorState -> Maybe SimulatorState
@@ -135,10 +142,10 @@ toggleHold state = case held (gs state) of
                      Just k  -> Just . setActive (startingPosition k) . setHeld hld $ state
   where hld = Just . kind . active . gs $ state 
 
-advance :: MonadRandom m => Action -> SimulatorState -> m (Maybe SimulatorState)
-advance Hold s = pure (toggleHold s)
-advance HardDrop s = fmap cycleActive . advanceBoard . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
-advance act s = pure . Just . setActive (moveBlock (board . gs $ s)  act (active . gs $ s)) $ s
+advance :: MonadRandom m => Int -> Action -> SimulatorState -> m (Maybe SimulatorState)
+advance _ Hold s = pure (toggleHold s)
+advance n HardDrop s = fmap cycleActive . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
+advance _ act s = pure . Just . setActive (moveBlock (board . gs $ s)  act (active . gs $ s)) $ s
 
 simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m (Int, Int)
 simulateAI gen ct = flip evalRandT g1 . evalStateT (go ct st0)
@@ -147,12 +154,11 @@ simulateAI gen ct = flip evalRandT g1 . evalStateT (go ct st0)
           disp :: MonadIO m => SimulatorState -> m ()
           disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
           go :: (MonadIO m, MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
-          go 0 st = disp st >> pure (0, attacks st) 
           go n st = do
-              disp st
-              liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\n"
+              -- disp st
+              -- liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
               actions <- runAI . gs $ st
-              st' <- foldl (\st' act -> join . fmap (fmap join . sequence . fmap (advance act)) $ st') (pure $ Just st) actions
+              st' <- foldl (\st' act -> join . fmap (fmap join . sequence . fmap (advance n act)) $ st') (pure $ Just st) actions
               case st' of
-                Just s -> go (n - 1) s
+                Just s -> go (n + 1) s
                 Nothing -> pure (n, attacks st)
