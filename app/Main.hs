@@ -67,11 +67,7 @@ nextState curr = waitUntil' 10000 600 $ do
     count <- executeJS [] "return window.fcount;"
     expect $ count > curr
 
-    matrix <- executeJS [] "return window.game.matrix"
-    act    <- executeJS [] "return window.game.activeBlock"
-    hld    <- executeJS [] "return window.game.blockInHold"
-    q      <- executeJS [] "return window.game.queue"
-    inc    <- executeJS [] "return window.game.incomingGarbage"
+    (matrix, act, hld, q, inc) <- executeJS [] "return [window.game.matrix, window.game.activeBlock, window.game.blockInHold, window.game.queue, window.game.incomingGarbage]"
     let brd = fmap (colorsToSquare M.!) . mconcat $ matrix
         garbage = fmap head $ inc
         gs = GameState brd act (kind <$> hld) (kind <$> q) garbage
