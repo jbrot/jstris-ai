@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8b2e7472cee9a285119fcab7b093682db3cbcab73147988bab07db10624c7878
+-- hash: b1a909c042420dd3e2402afd93d83f7cf482d404cefb33642773ef02f95c7158
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -39,6 +39,7 @@ library
     , aeson
     , base >=4.7 && <5
     , containers
+    , finitary
     , finitary-derive
     , logict
     , mtl
@@ -63,6 +64,7 @@ executable jstris-ai-exe
     , aeson
     , base >=4.7 && <5
     , containers
+    , finitary
     , finitary-derive
     , jstris-ai
     , logict

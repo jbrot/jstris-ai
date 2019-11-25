@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingVia #-}
 module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
@@ -8,16 +9,19 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               ) where
 
 import Control.Monad.Random
+import Data.Finitary
+import Data.Finitary.PackWords
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as MV
+import Data.Vector.Unboxed (Vector)
+import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed.Mutable as MV
+import GHC.Generics
 import Text.Printf
 
 data Block = I | J | L | O | S | T | Z
-  deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic, Finitary)
 
 type Row = Int
 type Col = Int
@@ -39,15 +43,16 @@ startingPosition b = ActiveBlock b (height b, 3) 0
         height _ = -2
 
 data Square = Empty | Garbage | Remnant Block | HurryUp
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, Finitary)
 
-type Board = Vector Square
+type Board = Vector (PackWords Square)
 
 boardIndex :: Pos -> Int
 boardIndex (r,c) = 10 * r + c
 
 getSquare :: Pos -> Board -> Square
-getSquare p b = b V.! (boardIndex p)
+getSquare p b = case b V.! (boardIndex p) of
+                  (Packed s) -> s
 
 isEmpty :: Board -> Pos -> Bool
 isEmpty b (r,c) 
@@ -55,7 +60,7 @@ isEmpty b (r,c)
   | c >= 10 = False
   | r <  0  = True
   | r >= 20 = False
-  | otherwise = b V.! boardIndex (r,c) == Empty
+  | otherwise = b V.! boardIndex (r,c) == Packed Empty
 
 -- Are all the spaces occupied by the ActiveBlock empty?
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
@@ -68,7 +73,7 @@ validateAB b a = if canAddActiveBlock b a then Just a else Nothing
 -- Does not check if spaces are overwritten.
 addActiveBlock :: Board -> ActiveBlock -> Board
 addActiveBlock board block = board V.// (filter (\(i,_) -> (i >= 0) && (i < 200)) updates)
-    where updates = fmap (\p -> (boardIndex p, Remnant (kind block))) . getCoords $ block
+    where updates = fmap (\p -> (boardIndex p, Packed . Remnant . kind $ block)) . getCoords $ block
 
 -- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
 -- Will only return Nothing if the current position is invalid.
@@ -90,22 +95,22 @@ rotateBlock board dir def@(ActiveBlock k (r,c) rot) = listToMaybe . catMaybes . 
           candidates = fmap (\(ro,co) -> ActiveBlock k (r + ro, c + co) nrot) kicks
 
 complete :: Board -> Row -> Bool
-complete b r = null . V.filter (\s -> s == Empty || s == HurryUp) .  V.slice (10 * r) 10 $ b
+complete b r = V.null . V.filter (\s -> s == Packed Empty || s == Packed HurryUp) .  V.slice (10 * r) 10 $ b
 
 clearLines :: Board -> (Int, Board)
 clearLines board = foldr remove (0, board) . filter (complete board) . reverse $ [0..19] 
     where remove :: Row -> (Int, Board) -> (Int, Board)
           remove r (c, b) = (c + 1, V.modify (\v -> do
               MV.move (MV.slice 10 (10 * r) v) (MV.slice 0 (10 * r) v) 
-              MV.set (MV.slice 0 10 v) Empty) b)
+              MV.set (MV.slice 0 10 v) (Packed Empty)) b)
 
 addGarbageLines :: Int -> Col -> Board -> Board
 addGarbageLines n c b = V.modify (\v -> do
-    let total = maybe 20 (`div` 10) . V.findIndex (== HurryUp) $ b
+    let total = maybe 20 (`div` 10) . V.findIndex (== Packed HurryUp) $ b
         len = (total - n) * 10
     MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
-    MV.set (MV.slice len (10 * n) v) Garbage
-    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) Empty) $ [(total - n)..(total - 1)]
+    MV.set (MV.slice len (10 * n) v) (Packed Garbage)
+    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) (Packed Empty)) $ [(total - n)..(total - 1)]
     pure ()) b
 
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
