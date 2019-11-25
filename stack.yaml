@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-14.14
+resolver: nightly-2019-11-24
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -39,7 +39,13 @@ packages:
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
-# extra-deps: []
+extra-deps:
+- finitary-derive-2.1.0.0@sha256:d1703269280319a5d53c8586b84bfb7bad29ce661594c07f2a60fa4411fca8e5,3025
+- coercible-utils-0.0.0@sha256:8d447373536021684dd3edcfd073a0046570c7010b2938f18f9538eccc9e76f5,1871
+- finitary-1.2.0.0@sha256:84edde7135d274b213e73f072b1b8326ef76e4f9f18c84524bcff2e01695d5e4,2715
+- typelits-witnesses-0.4.0.0@sha256:1d7092ba98fdc33f4b413e04144eb3ead7b105f74b2998e3c74a8a0feee685a9,1985
+- dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+- constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

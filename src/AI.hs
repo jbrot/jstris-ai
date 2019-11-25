@@ -79,7 +79,7 @@ aggregateHeight :: Board -> Int
 aggregateHeight board = sum (height board <$> [0..9])
 
 height :: Board -> Col -> Int
-height board c = (20 -) . minimum . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
+height board c = (20 -) . head . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
 
 completeLines :: Board -> Int
 completeLines board = length . filter (complete board) $ [0..19]
