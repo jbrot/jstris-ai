@@ -3,7 +3,6 @@ module Simulator where
 import Control.Monad.Identity
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
-import Data.Finitary.PackWords
 import Data.Maybe (fromJust)
 import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as V
@@ -56,7 +55,7 @@ hurryUp :: Int -> Board -> Board
 hurryUp n = V.modify (\v -> do
     let len = (20 - n) * 10
     MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
-    MV.set (MV.slice len (10 * n) v) (Packed HurryUp))
+    MV.set (MV.slice len (10 * n) v) (pack HurryUp))
 
 updateAttack :: Int -> SimulatorState -> SimulatorState
 updateAttack cleared s = s{combo = cbo, attacks = atk}
@@ -82,13 +81,13 @@ updateAttack cleared s = s{combo = cbo, attacks = atk}
                            2 -> 1
                            3 -> 2
                            4 -> 4
-          perfectLines = if (V.null . V.filter (\x -> x /= Packed Empty) . board . gs $ s)
+          perfectLines = if (V.null . V.filter (\x -> x /= pack Empty) . board . gs $ s)
                             then 10
                             else 0
           atk = cboLines + clearedLines + perfectLines + attacks s
 
 emptyBoard :: Board
-emptyBoard = V.replicate 200 (Packed Empty)
+emptyBoard = V.replicate 200 (pack Empty)
 
 pieceQueue :: RandomGen g => g -> [Block]
 pieceQueue = runIdentity . evalRandT (fmap mconcat . sequence . repeat . shuffleM $ [ I, J, L, O, S, T, Z ])

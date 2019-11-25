@@ -9,7 +9,6 @@ import Control.Monad.Random
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
 import Data.Aeson
-import Data.Finitary.PackWords
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Data.Vector.Unboxed (Vector)
@@ -48,7 +47,7 @@ exMatrix = [ [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
            , [ 8, 8, 8, 8, 8, 8, 8, 8, 0, 8 ]
            , [ 8, 8, 8, 0, 8, 8, 8, 8, 8, 8 ]
            ]
-exBrd = V.fromList . fmap (Packed . (colorsToSquare M.!)) . mconcat $ exMatrix
+exBrd = V.fromList . fmap (pack . (colorsToSquare M.!)) . mconcat $ exMatrix
 exAct = ActiveBlock Z (-1, 3) 0
 exState = GameState exBrd exAct Nothing [] []
 
@@ -69,7 +68,7 @@ nextState curr = waitUntil' 10000 600 $ do
     expect $ count > curr
 
     (matrix, act, hld, q, inc) <- executeJS [] "return [window.game.matrix, window.game.activeBlock, window.game.blockInHold, window.game.queue, window.game.incomingGarbage]"
-    let brd = V.map (Packed . (colorsToSquare M.!)) . mconcat $ matrix
+    let brd = V.map (pack . (colorsToSquare M.!)) . mconcat $ matrix
         garbage = fmap head $ inc
         gs = GameState brd act (kind <$> hld) (kind <$> q) garbage
     pure (count, gs, inc)
