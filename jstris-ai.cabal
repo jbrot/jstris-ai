@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cce0a8ee91eb5cd20c6d3229951f6d748d00c9d56929df82588462a86bc2873a
+-- hash: 675225d47c805f017aea4640415bea90ef1cff88039f78c3d0f20de939390fed
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -39,10 +39,12 @@ library
     , aeson
     , base >=4.7 && <5
     , containers
+    , logict
     , mtl
     , random
     , random-shuffle
     , text
+    , transformers
     , vector
     , webdriver
   default-language: Haskell2010
@@ -61,10 +63,12 @@ executable jstris-ai-exe
     , base >=4.7 && <5
     , containers
     , jstris-ai
+    , logict
     , mtl
     , random
     , random-shuffle
     , text
+    , transformers
     , vector
     , webdriver
   default-language: Haskell2010

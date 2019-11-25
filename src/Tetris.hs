@@ -2,11 +2,12 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant, HurryUp)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, validateAB, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, printBoard
-              , GameState (GameState), board, active, held, queue, garbage
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, validateAB, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, addGarbageLines, printBoard
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock, moveBlock'
+              , GameState (GameState), board, active, held, queue, garbage, moveActive, moveActive', addActive, clearLines', addGarbage, reduceGarbage
               ) where
 
+import Control.Monad.Random
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe
@@ -98,15 +99,17 @@ clearLines board = foldr remove (0, board) . filter (complete board) . reverse $
               MV.move (MV.slice 10 (10 * r) v) (MV.slice 0 (10 * r) v) 
               MV.set (MV.slice 0 10 v) Empty) b)
 
-data GameState = GameState { board :: Board
-                           , active :: ActiveBlock
-                           , held :: Maybe Block
-                           , queue :: [Block]
-                           , garbage :: Int
-                           }
+addGarbageLines :: Int -> Col -> Board -> Board
+addGarbageLines n c b = V.modify (\v -> do
+    let total = maybe 20 (`div` 10) . V.findIndex (== HurryUp) $ b
+        len = (total - n) * 10
+    MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
+    MV.set (MV.slice len (10 * n) v) Garbage
+    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) Empty) $ [(total - n)..(total - 1)]
+    pure ()) b
 
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
-  deriving Show
+    deriving (Eq, Show)
 
 -- Applies an action to a block.
 -- Does nothing if the specified Action is Hold.
@@ -123,6 +126,38 @@ moveBlock b RotateRight a = rotateBlock b True a
 -- Same as moveBlock, but returns the given ActiveBlock if the Action fails.
 moveBlock' :: Board -> Action -> ActiveBlock -> ActiveBlock
 moveBlock' b a ab = fromMaybe ab (moveBlock b a ab)
+
+data GameState = GameState { board :: Board
+                           , active :: ActiveBlock
+                           , held :: Maybe Block
+                           , queue :: [Block]
+                           , garbage :: [Int]
+                           }
+
+moveActive :: Action -> GameState -> Maybe GameState
+moveActive act gs = fmap (\a -> gs{active = a}) $ moveBlock (board gs) act (active gs)
+
+moveActive' :: Action -> GameState -> GameState
+moveActive' a s = fromMaybe s (moveActive a s)
+
+addActive :: GameState -> GameState
+addActive g = g{board = addActiveBlock (board g) (active g)}
+
+clearLines' :: GameState -> (Int, GameState)
+clearLines' gs = fmap (\b -> gs{board = b}) . clearLines . board $ gs
+
+addGarbage :: MonadRandom m => GameState -> m GameState
+addGarbage g = fmap (\b -> g{board = b}) $ foldl update (pure $ board g) (garbage g)
+  where update :: MonadRandom m => m Board -> Int -> m Board
+        update b' ct = do
+            cl <- getRandomR (0,9)
+            pure . addGarbageLines ct cl =<< b'
+
+reduceGarbage :: Int -> GameState -> GameState
+reduceGarbage _ g@GameState{garbage = [] } = g
+reduceGarbage c g@GameState{garbage = ct:gbs}
+  | c >= ct  = reduceGarbage (c - ct) g{garbage = gbs}
+  | otherwise = g{garbage = (ct - c):gbs}
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]

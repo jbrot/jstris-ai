@@ -2,7 +2,7 @@ module Simulator where
 
 import Control.Monad.Identity
 import Control.Monad.Random
-import Control.Monad.State
+import Control.Monad.Trans.State.Strict
 import Data.Maybe (fromJust)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -16,24 +16,23 @@ data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]
                                      , combo :: Int
                                      , attacks :: Int
-                                     , garbageQueue :: [(Int,Col)] 
                                      }
+
+updateGS :: (GameState -> GameState) -> SimulatorState -> SimulatorState
+updateGS f s = s{gs = f . gs $ s}
 
 -- This could be done with lenses, but I don't feel like figuring out how they work right now
 setBoard :: Board -> SimulatorState -> SimulatorState
-setBoard b st@SimulatorState{gs = g} = st{gs = g{board = b}}
+setBoard b = updateGS $ \g -> g{board = b}
 setActive :: ActiveBlock -> SimulatorState -> SimulatorState
-setActive a st@SimulatorState{gs = g} = st{gs = g{active = a}}
+setActive a = updateGS $ \g -> g{active = a}
 setHeld :: Maybe Block -> SimulatorState -> SimulatorState
-setHeld b st@SimulatorState{gs = g} = st{gs = g{held = b}}
+setHeld b = updateGS $ \g -> g{held = b}
 setQueue :: [Block] -> SimulatorState -> SimulatorState
-setQueue q st@SimulatorState{gs = g} = st{gs = g{queue = q}}
+setQueue q = updateGS $ \g -> g{queue = q}
 
-updateGarbageCt :: SimulatorState -> SimulatorState
-updateGarbageCt st@SimulatorState{gs = g} = st{gs = g{garbage = sum . fmap fst . garbageQueue $ st}}
-
-garbageHistogram = [(1,84),(2,24),(3,6),(4,18),(5,3),(7,1),(10,3)]
-garbageTime = 3918
+garbageHistogram = [(1,113),(2,30),(3,9),(4,23),(5,3),(7,1),(10,3)]
+garbageTime = 4918
 
 sampleHistogram :: MonadRandom m => [(a, Int)] -> m a 
 sampleHistogram h = fmap (\v -> fromJust . snd . foldr iterate (v, Nothing) $ h) $ getRandomR (0, len - 1)
@@ -43,23 +42,13 @@ sampleHistogram h = fmap (\v -> fromJust . snd . foldr iterate (v, Nothing) $ h)
           iterate (a, c) (r, Nothing) = if c >= r then (0, Just a)
                                                   else (r - c, Nothing)
 
-addGarbageLines :: Int -> Col -> Board -> Board
-addGarbageLines n c b = V.modify (\v -> do
-    let total = maybe 20 (`div` 10) . V.findIndex (== HurryUp) $ b
-        len = (total - n) * 10
-    MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
-    MV.set (MV.slice len (10 * n) v) Garbage
-    sequence . fmap (\r -> MV.write v (boardIndex (r,c)) Empty) $ [(total - n)..(total - 1)]
-    pure ()) b
-
 queueGarbage :: MonadRandom m => SimulatorState -> m SimulatorState
 queueGarbage s = getRandomR (0, garbageTime) >>= \r -> 
     if r > (sum . fmap snd $ garbageHistogram)
-       then pure . updateGarbageCt $ s
+       then pure s
        else do
-           cl <- getRandomR (0,9)
            ct <- sampleHistogram garbageHistogram
-           queueGarbage s{garbageQueue = garbageQueue s <> [(ct,cl)]}
+           queueGarbage . updateGS (\g -> g{garbage = garbage g <> [ct]}) $ s
 
 
 hurryUp :: Int -> Board -> Board
@@ -104,7 +93,7 @@ pieceQueue :: RandomGen g => g -> [Block]
 pieceQueue = runIdentity . evalRandT (fmap mconcat . sequence . repeat . shuffleM $ [ I, J, L, O, S, T, Z ])
 
 startingState :: RandomGen g => g -> SimulatorState
-startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue 0) leftOver 0 0 []
+startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue []) leftOver 0 0
     where (active:queue, leftOver) = splitAt 6 . pieceQueue $ g
 
 cycleActive :: SimulatorState -> Maybe SimulatorState
@@ -116,15 +105,10 @@ cycleActive state = if canAddActiveBlock (board newGS) nact
           nact = startingPosition n
           newGS = (gs state){ active = startingPosition n, queue = q <> [nq] }
 
-applyGarbage :: Int -> SimulatorState -> SimulatorState
-applyGarbage cleared state
-  | null (garbageQueue state) = state
-  | cleared == 0 = updateGarbageCt . setBoard (foldl (\b (ct,cl) -> addGarbageLines ct cl b) (board . gs $ state) (garbageQueue state)) $ state{garbageQueue = []}
-  | otherwise = updateGarbageCt state{garbageQueue = reverse . snd . foldl reduce (cleared, []) . garbageQueue $ state}
-      where reduce (r, l) (ct, cl)
-              | r == 0 = (0, (ct, cl):l)
-              | r >= ct = (r - ct, [])
-              | otherwise = (0, [(ct - r, cl)])
+applyGarbage :: MonadRandom m => Int -> SimulatorState -> m SimulatorState
+applyGarbage 0 = \s -> do g <- addGarbage . gs $ s
+                          pure . updateGS (const g) $ s
+applyGarbage n = pure . updateGS (reduceGarbage n)
 
 applyHurryUp :: Int -> SimulatorState -> SimulatorState
 applyHurryUp n s
@@ -133,7 +117,7 @@ applyHurryUp n s
   | otherwise = s
 
 advanceBoard :: MonadRandom m => Int -> SimulatorState -> m SimulatorState
-advanceBoard n state = queueGarbage . applyHurryUp n . applyGarbage cleared . updateAttack cleared . setBoard brd $ state
+advanceBoard n state = join . fmap (queueGarbage . applyHurryUp n) . applyGarbage cleared . updateAttack cleared . setBoard brd $ state
     where (cleared, brd) = clearLines . board . gs $ state
 
 toggleHold :: SimulatorState -> Maybe SimulatorState
@@ -155,8 +139,8 @@ simulateAI gen ct = flip evalRandT g1 . evalStateT (go ct st0)
           disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
           go :: (MonadIO m, MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
           go n st = do
-              -- disp st
-              -- liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
+              disp st
+              liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
               actions <- runAI . gs $ st
               st' <- foldl (\st' act -> join . fmap (fmap join . sequence . fmap (advance n act)) $ st') (pure $ Just st) actions
               case st' of

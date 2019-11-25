@@ -23,11 +23,13 @@ dependencies:
 - aeson
 - base >= 4.7 && < 5
 - containers
+- logict
 - MonadRandom
 - mtl
 - random
 - random-shuffle
 - text
+- transformers
 - vector
 - webdriver
 
