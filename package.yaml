@@ -31,9 +31,11 @@ dependencies:
 - moo
 - mtl
 - optparse-applicative
+- parallel
 - random
 - random-shuffle
 - text
+- time
 - transformers
 - vector
 - webdriver

@@ -8,6 +8,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Random.Strict
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
+import Control.Parallel.Strategies (parMap, rpar)
 import Data.Aeson
 import Data.Functor.Identity
 import Data.Text (Text)
@@ -16,6 +17,7 @@ import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as V
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Time.Clock
 import Moo.GeneticAlgorithm.Continuous
 import qualified Moo.GeneticAlgorithm.Continuous as MOO
 import Numeric.LinearAlgebra.Static (matrix)
@@ -154,9 +156,12 @@ elitesize = 3
 gens = 1000
 
 evaluate :: RandomGen g => g -> Genome Double -> Objective
-evaluate g pop = (/ 3) . sum . flip evalState g . sequence . replicate 3 . state $ simulate
+evaluate g pop = maximum . flip evalState g . sequence . replicate 3 . state $ simulate
     where simulate :: RandomGen g => g -> (Objective, g)
           simulate g = (\((a,b), g) -> (fromInteger . toInteger $ a + b, g)) . runIdentity . simulateAI 500 g . listToAI $ pop
+
+evaluate' :: RandomGen g => g -> [Genome Double] -> [Objective]
+evaluate' g = parMap rpar (evaluate g)
 
 selection = stochasticUniversalSampling (popsize - elitesize)
 crossover = twoPointCrossover 0.3
@@ -165,11 +170,12 @@ initialize = getRandomGenomes popsize (replicate (7 * 14 + 8) (-10,10))
 step :: StepGA MOO.Rand Double
 step x y = do
     g <- liftRand (\x -> (x,x))
-    nextGeneration Maximizing (evaluate g) selection elitesize crossover mutation x y
+    nextGeneration Maximizing (evaluate' g) selection elitesize crossover mutation x y
 stop = IfObjective ((> 700) . maximum)
 
 stepFunc :: Int -> Population Double -> IO ()
 stepFunc g pop = do
+    print =<< getCurrentTime
     printf "Gen: %d \n Pop: %s \n" g (show . fmap snd $ pop)
     writeFile ("population_" ++ show g) (show pop)
     printf "Saved pop!\n"

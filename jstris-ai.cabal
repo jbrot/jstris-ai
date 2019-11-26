@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 672cdc605ebe8536b51b9ee9ec1d86d1498e7e036b469884505d18a0896e77a3
+-- hash: bc0c6aa7a02b42ab32fb43b4b9a2cb14397402c7f36ed5a1198557e3e2514f2d
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -46,9 +46,11 @@ library
     , moo
     , mtl
     , optparse-applicative
+    , parallel
     , random
     , random-shuffle
     , text
+    , time
     , transformers
     , vector
     , webdriver
@@ -76,9 +78,11 @@ executable jstris-ai-exe
     , moo
     , mtl
     , optparse-applicative
+    , parallel
     , random
     , random-shuffle
     , text
+    , time
     , transformers
     , vector
     , webdriver
