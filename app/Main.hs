@@ -19,6 +19,7 @@ import qualified Data.Map.Strict as M
 import Moo.GeneticAlgorithm.Continuous
 import qualified Moo.GeneticAlgorithm.Continuous as MOO
 import Numeric.LinearAlgebra.Static (matrix)
+import System.Environment (getArgs)
 import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
@@ -145,15 +146,25 @@ evaluate g pop = fromInteger . toInteger $ pieces + attacks
 selection = tournamentSelect Maximizing 2 (popsize - elitesize)
 crossover = unimodalCrossoverRP
 mutation = gaussianMutate 0.01 0.05
-initialize = getRandomGenomes popsize (replicate (7 * 14 + 8) (-1,1))
+initialize = getRandomGenomes popsize (replicate (7 * 14 + 8) (-10,10))
 step :: RandomGen g => g -> StepGA MOO.Rand Double
 step g = nextGeneration Maximizing (evaluate g) selection elitesize crossover mutation
-stop = Generations gens
+stop = Or (Generations gens) (IfObjective ((> 700) . maximum))
+
+stepFunc :: Int -> Population Double -> IO ()
+stepFunc g pop = do
+    printf "Gen: %d \n Pop: %s \n" g (show . fmap snd $ pop)
+    writeFile ("population_" ++ show g) (show pop)
+    printf "Saved pop!\n"
 
 -- An alternate main which trains the AI via genetic algorithms
 main = do
+    args <- getArgs
+    init <- if not (null args)
+               then fmap (pure . fmap fst) (readLn :: IO (Population Double))
+               else pure initialize
     r <- newStdGen
-    population <- runIO initialize (loopIO [DoEvery 1 (\g pop -> printf "Gen: %d \n Pop: %s \n Genom: %s \n" g (show . fmap snd $ pop) (show . fst . head $ pop))] stop (step r))
+    population <- runIO init (loopIO [DoEvery 1 stepFunc] stop (step r))
     print . head . bestFirst Maximizing $ population
 
 -- This function injects some code into the render loop which lets us keep track

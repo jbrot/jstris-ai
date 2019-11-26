@@ -139,8 +139,8 @@ score = do
         v = qvec # bvec & cvrt cmbo & cvrt lns
         relu :: Double -> Double
         relu r 
-          | r < 0 = 0
-          | r > 1 = 1
+          | r < -1 = -1 
+          | r > 1  = 1
           | otherwise = r
     (AIState l1 l2 _) <- lift get
     pure . fmap (const (cl > 0)) . headTail $ l2 #> ((dvmap relu $ l1 #> (v & 1)) & 1)
