@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b1a909c042420dd3e2402afd93d83f7cf482d404cefb33642773ef02f95c7158
+-- hash: e25be78e0f6237496e1fe07363cd2294f17973978c5296122b4ab69f4a5daeb2
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -41,7 +41,9 @@ library
     , containers
     , finitary
     , finitary-derive
+    , hmatrix
     , logict
+    , moo
     , mtl
     , random
     , random-shuffle
@@ -66,8 +68,10 @@ executable jstris-ai-exe
     , containers
     , finitary
     , finitary-derive
+    , hmatrix
     , jstris-ai
     , logict
+    , moo
     , mtl
     , random
     , random-shuffle

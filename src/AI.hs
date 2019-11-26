@@ -1,7 +1,7 @@
 -- The actual tetris AI.
 -- Heavily inspired by Lee Yiyuan's AI (https://github.com/LeeYiyuan/tetrisai).
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module AI (AIState, defaultState, runAI) where
+{-# LANGUAGE DataKinds, GeneralizedNewtypeDeriving #-}
+module AI (AIState (AIState), defaultState, runAI) where
 
 import Control.Applicative
 import Control.Monad.Logic
@@ -11,37 +11,53 @@ import Control.Monad.Trans.Writer.CPS
 import Control.Monad.Random
 import Data.List
 import Data.Maybe
+import Numeric.LinearAlgebra.Static (L, matrix, vector, headTail, (#>))
 
 import Tetris
 
-data AIState = AIState
+data AtkState = AtkState { combo :: Int, lines :: Int }
+
+data AIState = AIState  { l1 :: (L 1 4)
+                        , scombo :: Int 
+                        }
+--     { l1 :: L 7 1
+--                        , l2 :: L 7 13
   deriving Show
 
+-- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
 defaultState :: AIState
-defaultState = AIState
+defaultState = AIState (matrix [-0.510066, 0.760666, -0.35663, -0.184483]) 0
 
-runAI :: (MonadIO m, MonadRandom m) => GameState -> StateT AIState m [Action]
+runAI :: (MonadRandom m) => GameState -> StateT AIState m [Action]
 runAI state = do
+    -- modify (\st -> st{attack = 0})
     options <- runComputation state (possible 2 >> score')
     if null options
        then pure [ HardDrop ]
-       else pure . (<> [ HardDrop ]) . takeWhile (/= HardDrop) . snd . maximumBy (\a b -> compare (fst a) (fst b)) $ options
+       else do
+           let ((mx, cp), as) = maximumBy (\a b -> compare (fst $ fst a) (fst $ fst b)) options
+           modify (\st -> st{scombo = if cp then 1 + scombo st else 0})
+           pure . (<> [ HardDrop ]) . takeWhile (/= HardDrop) $ as
 
-newtype Computation m a = Computation { unComp :: StateT GameState (WriterT [Action] (LogicT m)) a}
+newtype Computation m a = Computation { unComp :: StateT (GameState, AtkState) (WriterT [Action] (LogicT m)) a}
     deriving (Functor, Applicative, Monad, Alternative, MonadPlus)
 
 instance MonadTrans Computation where
     lift = Computation . lift . lift . lift
 
-runComputation :: Monad m => GameState -> Computation m a -> m [(a, [Action])]
-runComputation gs c = observeAllT . runWriterT . flip evalStateT gs . unComp $ c
+runComputation :: Monad m => GameState -> Computation (StateT AIState m) a -> StateT AIState m [(a, [Action])]
+runComputation gs c = do
+    st <- get
+    observeAllT . runWriterT . flip evalStateT (gs, AtkState (scombo st) 0) . unComp $ c
 
 getState :: Computation m GameState
-getState = Computation get
+getState = fst <$> Computation get
 putState :: GameState -> Computation m ()
-putState = Computation . put
+putState st = Computation $ modify (\(_,b) -> (st,b))
 modifyState :: (GameState -> GameState) -> Computation m ()
-modifyState = Computation . modify
+modifyState f = Computation $ modify (\(s,b) -> (f s,b))
+modifyAtk :: (AtkState -> AtkState) -> Computation m ()
+modifyAtk = Computation . modify . fmap
 tellAction :: Action -> Computation m ()
 tellAction = Computation . lift . tell . (:[])
 
@@ -57,7 +73,11 @@ act a = do
     when (a == HardDrop) $ do
         let (ct, state'') = clearLines' . addActive $ state'
         putState  (reduceGarbage ct state'')
-        when (ct == 0) (putState =<< lift . addGarbage =<< getState)
+        modifyAtk (\(AtkState c l) -> AtkState (c + 1) l)
+        when (ct == 0) $ do
+            putState =<< lift . addGarbage =<< getState
+            modifyAtk (\(AtkState _ l) -> AtkState 0 l)
+        modifyAtk (\(AtkState c l) -> AtkState c (l + attackLines (board state'') c ct))
         modifyState (\g@GameState{queue = h:t} -> g{active = startingPosition h, queue = t})
         fstate <- getState
         guard (canAddActiveBlock (board fstate) (active fstate))
@@ -92,10 +112,12 @@ holes board = sum (colHoles <$> [0..9])
 bumpiness :: Board -> Int
 bumpiness board = sum . fmap (\c -> abs (height board c - height board (c + 1))) $ [0..8]
 
--- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
-score :: Board -> Float
-score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.35663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
-  where itf = fromInteger . toInteger
+score :: Monad m => Board -> StateT AIState m (Double, Bool)
+score board = do
+    let cl = completeLines board
+        v = vector . fmap (\x -> fromInteger . toInteger . x $ board) $ [ aggregateHeight, const cl , holes, bumpiness ]
+    (AIState weights _) <- get
+    pure . fmap (const (cl > 0)) . headTail $ weights #> v
 
-score' :: Computation m Float
-score' = fmap (score . board) getState
+score' :: Monad m => Computation (StateT AIState m) (Double, Bool)
+score' = (lift . score . board) =<< getState

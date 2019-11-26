@@ -31,11 +31,11 @@ setHeld b = updateGS $ \g -> g{held = b}
 setQueue :: [Block] -> SimulatorState -> SimulatorState
 setQueue q = updateGS $ \g -> g{queue = q}
 
-garbageHistogram = [(1,113),(2,30),(3,9),(4,23),(5,3),(7,1),(10,3)]
-garbageTime = 4918
+garbageHistogram = [(1,517),(2,111),(3,27),(4,52),(5,16),(7,1),(10,3)]
+garbageTime = 10081
 
 sampleHistogram :: MonadRandom m => [(a, Int)] -> m a 
-sampleHistogram h = fmap (\v -> fromJust . snd . foldr iterate (v, Nothing) $ h) $ getRandomR (0, len - 1)
+sampleHistogram h = fmap (\v -> fromJust . snd . foldl (flip iterate) (v, Nothing) $ h) $ getRandomR (0, len - 1)
     where len = sum . fmap snd $ h
           iterate :: (a, Int) -> (Int, Maybe a) -> (Int, Maybe a)
           iterate _ (_, Just a) = (0, Just a)
@@ -131,16 +131,16 @@ advance _ Hold s = pure (toggleHold s)
 advance n HardDrop s = fmap cycleActive . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
 advance _ act s = pure . Just . setActive (moveBlock' (board . gs $ s)  act (active . gs $ s)) $ s
 
-simulateAI :: (MonadIO m, RandomGen g) => g -> Int -> AIState -> m (Int, Int)
-simulateAI gen ct = flip evalRandT g1 . evalStateT (go ct st0)
+simulateAI :: (Monad m, RandomGen g) => Int -> g -> AIState -> m (Int, Int)
+simulateAI max gen = flip evalRandT g1 . evalStateT (go 0 st0)
     where (g0, g1) = split gen
           st0 = startingState g0
           disp :: MonadIO m => SimulatorState -> m ()
           disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
-          go :: (MonadIO m, MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
-          go n st = do
-              disp st
-              liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
+          go :: (MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
+          go n st = if n == max then pure (max, attacks st) else do
+              -- disp st
+              -- liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
               actions <- runAI . gs $ st
               st' <- foldl (\st' act -> join . fmap (fmap join . sequence . fmap (advance n act)) $ st') (pure $ Just st) actions
               case st' of

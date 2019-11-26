@@ -3,7 +3,7 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
               , Row, Col, Pos, Rot
               , ActiveBlock (ActiveBlock), kind, pos, rot, getCoords, startingPosition
               , Square (Empty, Garbage, Remnant, HurryUp)
-              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, validateAB, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, addGarbageLines, printBoard
+              , Board, boardIndex, getSquare, isEmpty, canAddActiveBlock, validateAB, addActiveBlock, dropPosition, dropBlock, rotateBlock, complete, clearLines, addGarbageLines, attackLines, printBoard
               , Action (MoveLeft, MoveRight, SoftDrop, HardDrop, RotateLeft, RotateRight, Hold), moveBlock, moveBlock'
               , GameState (GameState), board, active, held, queue, garbage, moveActive, moveActive', addActive, clearLines', addGarbage, reduceGarbage
               , pack, unpack
@@ -122,6 +122,35 @@ addGarbageLines n c b = V.modify (\v -> do
     sequence . fmap (\r -> MV.write v (boardIndex (r,c)) (pack Empty)) $ [(total - n)..(total - 1)]
     pure ()) b
 
+-- Board -> Combo -> Cleared -> LinesSent
+-- Combo counts consecutive clears, so if cleared > 0, then combo >= 1.
+attackLines :: Board -> Int -> Int -> Int
+attackLines board combo cleared = cboLines + clearedLines + perfectLines 
+    where cboLines = case (combo - 1) of
+                       -1 -> 0
+                       0  -> 0
+                       1  -> 0
+                       2  -> 1
+                       3  -> 1
+                       4  -> 1
+                       5  -> 2
+                       6  -> 2
+                       7  -> 3
+                       8  -> 3
+                       9  -> 4
+                       10 -> 4
+                       11 -> 4
+                       otherwise -> 5
+          clearedLines = case cleared of
+                           0 -> 0
+                           1 -> 0
+                           2 -> 1
+                           3 -> 2
+                           4 -> 4
+          perfectLines = if (V.null . V.filter (\x -> x /= pack Empty) $ board)
+                            then 10
+                            else 0
+
 data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRight | Hold
     deriving (Eq, Show)
 
@@ -161,7 +190,7 @@ clearLines' :: GameState -> (Int, GameState)
 clearLines' gs = fmap (\b -> gs{board = b}) . clearLines . board $ gs
 
 addGarbage :: MonadRandom m => GameState -> m GameState
-addGarbage g = fmap (\b -> g{board = b}) $ foldl update (pure $ board g) (garbage g)
+addGarbage g = fmap (\b -> g{board = b, garbage = []}) $ foldl update (pure $ board g) (garbage g)
   where update :: MonadRandom m => m Board -> Int -> m Board
         update b' ct = do
             cl <- getRandomR (0,9)

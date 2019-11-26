@@ -5,20 +5,25 @@ module Main where
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Random
+import Control.Monad.Trans.Random.Strict
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
 import Data.Aeson
+import Data.Functor.Identity
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as V
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Moo.GeneticAlgorithm.Continuous
+import qualified Moo.GeneticAlgorithm.Continuous as MOO
+import Numeric.LinearAlgebra.Static (matrix)
 import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
+import Text.Printf
 
 import AI
 import Parse
@@ -124,9 +129,31 @@ main = runSession chromeConfig . finallyClose $ do
 -- An alternate main which runs the AI on a simulated game.
 -- main =  do
 --     g <- getStdGen
---     (pcs, atks) <- simulateAI g 1000 defaultState
+--     (pcs, atks) <- simulateAI 500 g defaultState
 --     putStrLn $ "Placed: " ++ (show pcs) ++ "\nLines Sent: " ++ (show atks)
 --     pure ()
+
+-- popsize = 50
+-- elitesize = 1
+-- gens = 100
+-- 
+-- evaluate :: RandomGen g => g -> Genome Double -> Objective
+-- evaluate g pop = fromInteger . toInteger $ pieces + attacks
+--     where (pieces, attacks)= runIdentity . simulateAI 500 g . AIState . matrix $ pop
+-- 
+-- selection = tournamentSelect Maximizing 2 (popsize - elitesize)
+-- crossover = unimodalCrossoverRP
+-- mutation = gaussianMutate 0.1 0.1
+-- initialize = getRandomGenomes popsize (replicate 4 (-1,1))
+-- step :: RandomGen g => g -> StepGA MOO.Rand Double
+-- step g = nextGeneration Maximizing (evaluate g) selection elitesize crossover mutation
+-- stop = Generations gens
+-- 
+-- -- An alternate main which trains the AI via genetic algorithms
+-- main = do
+--     r <- newStdGen
+--     population <- runIO initialize (loopIO [DoEvery 1 (\g pop -> printf "Gen: %d \n Pop: %s \n" g (show pop))] stop (step r))
+--     print . head . bestFirst Maximizing $ population
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly
