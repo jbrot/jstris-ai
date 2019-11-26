@@ -82,7 +82,7 @@ type Lines = Map Int Int
 type Histogram = Map Int Int
 
 mainLoop :: WD (Lines, Int)
-mainLoop = fmap fst . evalRandTIO . runStateT (go (0, (M.empty, 0))) $ defaultState
+mainLoop = fmap fst . evalRandTIO . runStateT (go (0, (M.empty, 0))) =<< liftIO defaultState
     where go :: (Int, (Lines, Int)) -> StateT AIState (RandT StdGen WD) (Lines, Int)
           go = guardInGame $ \(curr, (h, pct)) -> do
               (curr', state, inc) <- lift . lift . nextState $ curr
@@ -107,53 +107,54 @@ updateHist :: Histogram -> Lines -> Histogram
 updateHist = M.foldr (\v -> M.insertWith (+) v 1)
 
 main :: IO ()
-main = runSession chromeConfig . finallyClose $ do
-    openPage "https://jstris.jezevec10.com/"
-    ignoreReturn $ executeJS [] extractGameTrackFrameJS
-
-    flip execStateT (M.empty, 0) . sequence . repeat $ do
-        liftIO $ putStrLn "Waiting for game to start..."
-        lift waitForGameStart
-        liftIO $ putStrLn "Game starting!"
-        (hist, pcs) <- get
-        (lines, ct) <- lift mainLoop
-        if not (null lines) then do
-            let hist' = updateHist hist lines
-            put (hist', pcs + ct)
-            liftIO . print $ hist'
-            liftIO . print $ pcs + ct
-        else pure ()
-        liftIO $ putStrLn "Game complete!"
-    pure ()
+-- main = runSession chromeConfig . finallyClose $ do
+--     openPage "https://jstris.jezevec10.com/"
+--     ignoreReturn $ executeJS [] extractGameTrackFrameJS
+-- 
+--     flip execStateT (M.empty, 0) . sequence . repeat $ do
+--         liftIO $ putStrLn "Waiting for game to start..."
+--         lift waitForGameStart
+--         liftIO $ putStrLn "Game starting!"
+--         (hist, pcs) <- get
+--         (lines, ct) <- lift mainLoop
+--         if not (null lines) then do
+--             let hist' = updateHist hist lines
+--             put (hist', pcs + ct)
+--             liftIO . print $ hist'
+--             liftIO . print $ pcs + ct
+--         else pure ()
+--         liftIO $ putStrLn "Game complete!"
+--     pure ()
 
 -- An alternate main which runs the AI on a simulated game.
 -- main =  do
 --     g <- getStdGen
---     (pcs, atks) <- simulateAI 500 g defaultState
+--     (pcs, atks) <- simulateAI 500 g =<< defaultState
 --     putStrLn $ "Placed: " ++ (show pcs) ++ "\nLines Sent: " ++ (show atks)
 --     pure ()
 
--- popsize = 50
--- elitesize = 1
--- gens = 100
--- 
--- evaluate :: RandomGen g => g -> Genome Double -> Objective
--- evaluate g pop = fromInteger . toInteger $ pieces + attacks
---     where (pieces, attacks)= runIdentity . simulateAI 500 g . AIState . matrix $ pop
--- 
--- selection = tournamentSelect Maximizing 2 (popsize - elitesize)
--- crossover = unimodalCrossoverRP
--- mutation = gaussianMutate 0.1 0.1
--- initialize = getRandomGenomes popsize (replicate 4 (-1,1))
--- step :: RandomGen g => g -> StepGA MOO.Rand Double
--- step g = nextGeneration Maximizing (evaluate g) selection elitesize crossover mutation
--- stop = Generations gens
--- 
--- -- An alternate main which trains the AI via genetic algorithms
--- main = do
---     r <- newStdGen
---     population <- runIO initialize (loopIO [DoEvery 1 (\g pop -> printf "Gen: %d \n Pop: %s \n" g (show pop))] stop (step r))
---     print . head . bestFirst Maximizing $ population
+popsize = 75
+elitesize = 5
+gens = 100
+
+evaluate :: RandomGen g => g -> Genome Double -> Objective
+evaluate g pop = fromInteger . toInteger $ pieces + attacks
+    where (p1, p2) = splitAt (7 * 14) pop
+          (pieces, attacks)= runIdentity . simulateAI 500 g $ AIState (matrix p1) (matrix p2) 0
+
+selection = tournamentSelect Maximizing 2 (popsize - elitesize)
+crossover = unimodalCrossoverRP
+mutation = gaussianMutate 0.01 0.05
+initialize = getRandomGenomes popsize (replicate (7 * 14 + 8) (-1,1))
+step :: RandomGen g => g -> StepGA MOO.Rand Double
+step g = nextGeneration Maximizing (evaluate g) selection elitesize crossover mutation
+stop = Generations gens
+
+-- An alternate main which trains the AI via genetic algorithms
+main = do
+    r <- newStdGen
+    population <- runIO initialize (loopIO [DoEvery 1 (\g pop -> printf "Gen: %d \n Pop: %s \n Genom: %s \n" g (show . fmap snd $ pop) (show . fst . head $ pop))] stop (step r))
+    print . head . bestFirst Maximizing $ population
 
 -- This function injects some code into the render loop which lets us keep track
 -- of frames. It also puts the Game instance in a global variable so we can directly

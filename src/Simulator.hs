@@ -137,7 +137,7 @@ simulateAI max gen = flip evalRandT g1 . evalStateT (go 0 st0)
           st0 = startingState g0
           disp :: MonadIO m => SimulatorState -> m ()
           disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
-          go :: (MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
+          go :: (Monad m, MonadRandom m) => Int -> SimulatorState -> StateT AIState m (Int, Int)
           go n st = if n == max then pure (max, attacks st) else do
               -- disp st
               -- liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"

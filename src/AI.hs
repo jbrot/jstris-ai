@@ -11,27 +11,28 @@ import Control.Monad.Trans.Writer.CPS
 import Control.Monad.Random
 import Data.List
 import Data.Maybe
-import Numeric.LinearAlgebra.Static (L, matrix, vector, headTail, (#>))
+import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed.Mutable as MV
+import Numeric.LinearAlgebra.Static (L, R, matrix, vector, headTail, dvmap, rand, (#>), (#), (&))
 
 import Tetris
 
 data AtkState = AtkState { combo :: Int, lines :: Int }
 
-data AIState = AIState  { l1 :: (L 1 4)
+data AIState = AIState  { l1 :: (L 7 14)
+                        , l2 :: (L 1 8)
                         , scombo :: Int 
                         }
---     { l1 :: L 7 1
---                        , l2 :: L 7 13
   deriving Show
 
 -- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
-defaultState :: AIState
-defaultState = AIState (matrix [-0.510066, 0.760666, -0.35663, -0.184483]) 0
+defaultState :: IO AIState
+defaultState = AIState <$> rand <*> rand <*> pure 0
+    -- AIState (matrix [-0.510066, 0.760666, -0.35663, -0.184483]) 0
 
 runAI :: (MonadRandom m) => GameState -> StateT AIState m [Action]
 runAI state = do
-    -- modify (\st -> st{attack = 0})
-    options <- runComputation state (possible 2 >> score')
+    options <- runComputation state (possible 2 >> score)
     if null options
        then pure [ HardDrop ]
        else do
@@ -56,6 +57,8 @@ putState :: GameState -> Computation m ()
 putState st = Computation $ modify (\(_,b) -> (st,b))
 modifyState :: (GameState -> GameState) -> Computation m ()
 modifyState f = Computation $ modify (\(s,b) -> (f s,b))
+getAtk :: Computation m AtkState
+getAtk = snd <$> Computation get
 modifyAtk :: (AtkState -> AtkState) -> Computation m ()
 modifyAtk = Computation . modify . fmap
 tellAction :: Action -> Computation m ()
@@ -112,12 +115,32 @@ holes board = sum (colHoles <$> [0..9])
 bumpiness :: Board -> Int
 bumpiness board = sum . fmap (\c -> abs (height board c - height board (c + 1))) $ [0..8]
 
-score :: Monad m => Board -> StateT AIState m (Double, Bool)
-score board = do
-    let cl = completeLines board
-        v = vector . fmap (\x -> fromInteger . toInteger . x $ board) $ [ aggregateHeight, const cl , holes, bumpiness ]
-    (AIState weights _) <- get
-    pure . fmap (const (cl > 0)) . headTail $ weights #> v
+blId :: Block -> Int
+blId I = 0
+blId J = 1
+blId L = 2
+blId O = 3
+blId S = 4
+blId T = 5
+blId Z = 6
 
-score' :: Monad m => Computation (StateT AIState m) (Double, Bool)
-score' = (lift . score . board) =<< getState
+score :: Monad m => Computation (StateT AIState m) (Double, Bool)
+score = do
+    state <- getState
+    (AtkState cmbo lns) <- getAtk
+    let cvrt :: Int -> Double
+        cvrt = fromInteger . toInteger
+        qvec :: R 7
+        qvec = vector . V.toList . V.modify (\v -> sequence_ . fmap (MV.modify v (+ 1) . blId) . queue $ state) $ V.replicate 7 0 
+        cl = completeLines . board $ state
+        bvec :: R 4
+        bvec = vector . fmap (\x -> cvrt . x . board $ state) $ [ aggregateHeight, const cl , holes, bumpiness ]
+        v :: R 13
+        v = qvec # bvec & cvrt cmbo & cvrt lns
+        relu :: Double -> Double
+        relu r 
+          | r < 0 = 0
+          | r > 1 = 1
+          | otherwise = r
+    (AIState l1 l2 _) <- lift get
+    pure . fmap (const (cl > 0)) . headTail $ l2 #> ((dvmap relu $ l1 #> (v & 1)) & 1)
