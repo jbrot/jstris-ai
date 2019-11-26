@@ -30,6 +30,7 @@ dependencies:
 - MonadRandom
 - moo
 - mtl
+- optparse-applicative
 - random
 - random-shuffle
 - text

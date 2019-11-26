@@ -1,7 +1,7 @@
 -- The actual tetris AI.
 -- Heavily inspired by Lee Yiyuan's AI (https://github.com/LeeYiyuan/tetrisai).
 {-# LANGUAGE DataKinds, GeneralizedNewtypeDeriving #-}
-module AI (AIState (AIState), defaultState, runAI) where
+module AI (AIState (AIState), defaultState, listToAI, runAI) where
 
 import Control.Applicative
 import Control.Monad.Logic
@@ -29,6 +29,10 @@ data AIState = AIState  { l1 :: (L 7 14)
 defaultState :: IO AIState
 defaultState = AIState <$> rand <*> rand <*> pure 0
     -- AIState (matrix [-0.510066, 0.760666, -0.35663, -0.184483]) 0
+
+listToAI :: [Double] -> AIState
+listToAI ws = AIState (matrix w1) (matrix w2) 0
+    where (w1, w2) = splitAt (7 * 14) ws
 
 runAI :: (MonadRandom m) => GameState -> StateT AIState m [Action]
 runAI state = do

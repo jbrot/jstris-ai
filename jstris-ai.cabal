@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e25be78e0f6237496e1fe07363cd2294f17973978c5296122b4ab69f4a5daeb2
+-- hash: 672cdc605ebe8536b51b9ee9ec1d86d1498e7e036b469884505d18a0896e77a3
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -45,6 +45,7 @@ library
     , logict
     , moo
     , mtl
+    , optparse-applicative
     , random
     , random-shuffle
     , text
@@ -56,6 +57,7 @@ library
 executable jstris-ai-exe
   main-is: Main.hs
   other-modules:
+      CLI
       Parse
       Paths_jstris_ai
   hs-source-dirs:
@@ -73,6 +75,7 @@ executable jstris-ai-exe
     , logict
     , moo
     , mtl
+    , optparse-applicative
     , random
     , random-shuffle
     , text
