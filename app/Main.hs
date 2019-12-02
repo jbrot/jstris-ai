@@ -103,7 +103,7 @@ updateHist = M.foldr (\v -> M.insertWith (+) v 1)
 
 main :: IO ()
 main = runSession chromeConfig . finallyClose $ do
-    openPage "https://jstris.jezevec10.com/"
+    openPage "https://jstris.jezevec10.com/?play=1&mode=3"
     ignoreReturn $ executeJS [] extractGameTrackFrameJS
 
     flip execStateT (M.empty, 0) . sequence . repeat $ do
