@@ -32,7 +32,6 @@ dependencies:
 - hmatrix
 - logict
 - MonadRandom
-- moo
 - mtl
 - optparse-applicative
 - parallel
@@ -56,5 +55,6 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -W
     dependencies:
     - jstris-ai

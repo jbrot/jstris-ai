@@ -7,20 +7,15 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Random.Strict
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
-import Data.Aeson
 import Data.Text (Text)
-import qualified Data.Text.IO as T
-import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as V
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Grenade
-import Numeric.LinearAlgebra.Static (matrix)
 import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
-import Text.Printf
 
 import AI
 import CLI
@@ -133,12 +128,17 @@ extractGameTrackFrameJS = " window.fcount = 0; \
 -----------------------
 
 runSimulation :: AIState -> Bool -> IO ()
-runSimulation ai v = undefined
---     let sim = if v then simulateAILog else simulateAI
---     g <- getStdGen
---     (pcs, atks) <- sim 500 g =<< maybe defaultState pure ai
---     putStrLn $ "Placed: " ++ (show pcs) ++ "\nLines Sent: " ++ (show atks)
---     pure ()
+runSimulation ai v = flip evalStateT ai . go 0 . startingState =<< getStdGen
+    where go :: Int -> SimulatorState -> StateT AIState IO ()
+          go n st = do
+              when v . liftIO . printBoard . addActiveBlock (board . gs $ st) . active . gs $ st
+              acts <- runAI 10 (gs st)
+              let acts' :: [Maybe SimulatorState -> StateT AIState IO (Maybe SimulatorState)]
+                  acts' = fmap (\(a,_) -> fmap join . sequence . fmap (advance n a)) acts
+              st' <- foldl (>=>) (pure . id) acts' (Just st)
+              case st' of
+                Just s -> go (n + 1) s
+                Nothing -> pure ()
 
 -----------------------
 -----------------------

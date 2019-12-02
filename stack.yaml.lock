@@ -47,20 +47,6 @@ packages:
   original:
     hackage: constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
 - completed:
-    hackage: moo-1.2@sha256:0c4be1a01548db785dcbbe6b8c98579dbf03c5b3b536e0420dce3ba6a61337cb,5951
-    pantry-tree:
-      size: 2861
-      sha256: a32c48fefc42e1f7775c868794a91604522a59a1c0d2b2accff12197329f2d17
-  original:
-    hackage: moo-1.2@sha256:0c4be1a01548db785dcbbe6b8c98579dbf03c5b3b536e0420dce3ba6a61337cb,5951
-- completed:
-    hackage: gray-code-0.3.1@sha256:2c8a4ed9c9ee37320305610604d6d93504e0813d7c9768949af418b53043185a,2388
-    pantry-tree:
-      size: 506
-      sha256: 7b133d19b93231ea84b286cfe1a2038d67f9b553826845b33fad6526464e1de7
-  original:
-    hackage: gray-code-0.3.1@sha256:2c8a4ed9c9ee37320305610604d6d93504e0813d7c9768949af418b53043185a,2388
-- completed:
     cabal-file:
       size: 7305
       sha256: 12ad21ee33ddfeebbe0a9d04e5fc09c00f70275eeed956c8cfd39e0fb184b3b7

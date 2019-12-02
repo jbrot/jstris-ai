@@ -1,4 +1,4 @@
-module Simulator (SimulatorState, startingState, advance) where
+module Simulator (SimulatorState(..), startingState, advance) where
 
 import Control.Monad.Identity
 import Control.Monad.Random
