@@ -11,11 +11,13 @@ import Data.Text (Text)
 import qualified Data.Vector.Unboxed as V
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Maybe (fromJust, isNothing)
 import Grenade
 import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
 import Test.WebDriver.JSON (ignoreReturn)
+import Text.Printf
 
 import AI
 import CLI
@@ -30,7 +32,7 @@ main = do
     case cmd of
       Run a u -> parseAISpec a >>= \a' -> runOnline a' u
       Simulate a v -> parseAISpec a >>= \a' -> runSimulation a' v
-      Train a -> runTraining a
+      Train a v -> runTraining a v
 
 -------------------------
 -------------------------
@@ -134,7 +136,7 @@ runSimulation ai v = flip evalStateT ai . go 0 . startingState =<< getStdGen
               when v . liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ st) . active . gs $ st
               acts <- runAI 10 (gs st)
               let acts' :: [Maybe SimulatorState -> StateT AIState IO (Maybe SimulatorState)]
-                  acts' = fmap (\(a,_) -> fmap join . sequence . fmap (advance n a)) acts
+                  acts' = fmap (\(a,_) -> fmap (fmap fst . join) . sequence . fmap (advance n a)) acts
               st' <- foldl (>=>) (pure . id) acts' (Just st)
               case st' of
                 Just s -> go (n + 1) s
@@ -146,5 +148,57 @@ runSimulation ai v = flip evalStateT ai . go 0 . startingState =<< getStdGen
 -----------------------
 -----------------------
 
-runTraining :: Adam (Gradients NL) -> IO ()
-runTraining i = undefined 
+data TState = TState { ss :: SimulatorState
+                     , as :: AIState
+                     , stp :: Int
+                     , kp :: Int
+                     , rollout :: [(Float, Gradients NL)]
+                     , adam :: Adam (Gradients NL)
+                     , episode :: Int
+                     , avg :: Float
+                     }
+
+resetSim :: TState -> IO TState
+resetSim ts = fmap (\g -> ts{ss = startingState g, stp = 0, kp = 0}) getStdGen
+
+updateNet :: TState -> TState
+updateNet st = st{rollout = [], adam = ad', as = AIState nn' 0}
+  where gamma = 0.9
+        (_,gtrl) = foldl (\(v,ls) (r,g) -> let nv = gamma * v + r in (nv, (nv,g):ls)) (0, []) (rollout st)
+        average :: Fractional n => [n] -> n
+        average = (/) <$> sum <*> (realToFrac . length)
+        avg :: Float
+        avg = average (fmap fst gtrl) 
+        stdev :: Float
+        stdev = sqrt . average . fmap (\(x,_) -> (x - avg)^2) $ gtrl
+        rtf = realToFrac
+        upd = foldr (\(x,g) ag -> ag + ((negate . rtf $ (x - avg) / (stdev + 1e-9)) * g)) (rtf 0) gtrl
+        (ad', nn') = runAdam (adam st) upd (nn . as $st)
+
+nextEp :: TState -> IO TState
+nextEp ts = when (ep `mod` 10 == 0) logStat >> (resetSim . updateNet) ts{episode = ep, avg = navg}
+    where reward = sum . fmap fst . rollout $ ts
+          ep = 1 + episode ts
+          navg = 0.05 * reward + 0.95 * (avg ts)
+          logStat = printf "Episode: %d Last reward: %.02f Average: %.02f\n" ep reward navg
+
+step :: Bool -> TState -> IO TState
+step v ts = do
+    when v . (>> putStrLn "") . printBoard . addActiveBlock (board . gs . ss $ ts) . active . gs . ss $ ts
+    ((act, grad), as') <- runStateT (stepAI (gs . ss $ ts)) (as ts)
+    nxt <- advance (stp ts) act (ss ts)
+    if isNothing nxt || (act /= HardDrop && (kp ts) == 10)
+       then nextEp ts{rollout = (-1,grad):(rollout ts)}
+       else let (ss', atk) = fromJust nxt
+                stp' = 1 + (stp ts)
+                hd  = act == HardDrop
+                kp' = if hd then 0 else 1 + (kp ts)
+                rwd = realToFrac $ 2 * atk + (if hd then 1 else 0)
+                rl' = (rwd, grad):(rollout ts)
+             in pure ts{ss=ss', as=as', stp=stp', kp=kp', rollout=rl'}
+
+
+runTraining :: Adam (Gradients NL) -> Bool -> IO ()
+runTraining a v = go =<< TState <$> fmap startingState getStdGen <*> defaultState <*> pure 0 <*> pure 0 <*> pure [] <*>  pure a <*> pure 0 <*> pure 0
+    where go :: TState -> IO ()
+          go = step v >=> go

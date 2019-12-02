@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, GeneralizedNewtypeDeriving, ScopedTypeVariables, TypeFamilies, TypeOperators #-}
-module AI (NL, NNet, AIState (AIState), defaultState, parseAI, saveAI, stepAI, runAI) where
+module AI (NL, NNet, AIState (AIState), nn, defaultState, parseAI, saveAI, stepAI, runAI) where
 
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict

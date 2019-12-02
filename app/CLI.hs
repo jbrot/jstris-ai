@@ -17,7 +17,7 @@ parseAISpec (Left f) = (either fail pure . parseAI) =<< B.readFile f
 parseAISpec (Right True) = (either fail pure . parseAI ) =<< B.getContents
 parseAISpec (Right False) = defaultState
 
-data Command = Run AISpec String | Simulate AISpec Bool | Train (Adam (Gradients NL))
+data Command = Run AISpec String | Simulate AISpec Bool | Train (Adam (Gradients NL)) Bool
 
 aiFileOpt :: Parser FilePath 
 aiFileOpt = strOption $ opts
@@ -81,6 +81,10 @@ epsOpt = option auto $ opts
               <> value 1e-8
               <> metavar "C"
 
+adamP :: Parser (Adam (Gradients NL))
+adamP = Adam <$> fmap rtf alphaOpt <*> fmap rtf beta1Opt <*> fmap rtf beta2Opt <*> fmap rtf epsOpt <*> pure (rtf 0) <*> pure (rtf 0) <*> pure 0
+    where rtf = realToFrac
+
 parserInfo :: ParserInfo Command
 parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an AI that can play jstris, an online, multiplayer version of Tetris found at https://jstris.jezevec10.com/.")
     where parser = hsubparser . mconcat . fmap command' $
@@ -90,9 +94,8 @@ parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an
             ]
           runP   = Run <$> aiSpecOpt <*> urlOpt
           simP   = Simulate <$> aiSpecOpt <*> verboseFlag
-          trainP = fmap Train $ Adam <$> fmap rtf alphaOpt <*> fmap rtf beta1Opt <*> fmap rtf beta2Opt <*> fmap rtf epsOpt <*> pure (rtf 0) <*> pure (rtf 0) <*> pure 0
+          trainP = Train <$> adamP <*> verboseFlag
           command' (n,d,p) = command n . info p . progDesc $ d
-          rtf = realToFrac
 
 
 processCLI :: IO Command

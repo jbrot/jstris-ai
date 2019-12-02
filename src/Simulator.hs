@@ -4,6 +4,7 @@ import Control.Monad.Identity
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
 import Data.Maybe (fromJust)
+import Data.Tuple (swap)
 import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as MV
@@ -14,7 +15,6 @@ import Tetris
 data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]
                                      , combo :: Int
-                                     , attacks :: Int
                                      }
 
 updateGS :: (GameState -> GameState) -> SimulatorState -> SimulatorState
@@ -56,8 +56,8 @@ hurryUp n = V.modify (\v -> do
     MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
     MV.set (MV.slice len (10 * n) v) (pack HurryUp))
 
-updateAttack :: Int -> SimulatorState -> SimulatorState
-updateAttack cleared s = s{combo = cbo, attacks = atk}
+updateAttack :: Int -> SimulatorState -> (SimulatorState, Int)
+updateAttack cleared s = (s{combo = cbo}, cboLines + clearedLines)
     where cbo = if cleared > 0 then 1 + combo s else 0
           cboLines = case cbo - 1 of
                        -1 -> 0
@@ -74,16 +74,14 @@ updateAttack cleared s = s{combo = cbo, attacks = atk}
                        10 -> 4
                        11 -> 4
                        otherwise -> 5
-          clearedLines = case cleared of
-                           0 -> 0
-                           1 -> 0
-                           2 -> 1
-                           3 -> 2
-                           4 -> 4
-          perfectLines = if (V.null . V.filter (\x -> x /= pack Empty) . board . gs $ s)
-                            then 10
-                            else 0
-          atk = cboLines + clearedLines + perfectLines + attacks s
+          clearedLines = if (V.null . V.filter (\x -> x /= pack Empty) . board . gs $ s)
+                            then 10 -- Perfect clear
+                            else case cleared of
+                                     0 -> 0
+                                     1 -> 0
+                                     2 -> 1
+                                     3 -> 2
+                                     4 -> 4
 
 emptyBoard :: Board
 emptyBoard = V.replicate 200 (pack Empty)
@@ -92,7 +90,7 @@ pieceQueue :: RandomGen g => g -> [Block]
 pieceQueue = runIdentity . evalRandT (fmap mconcat . sequence . repeat . shuffleM $ [ I, J, L, O, S, T, Z ])
 
 startingState :: RandomGen g => g -> SimulatorState
-startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue []) leftOver 0 0
+startingState g = SimulatorState (GameState emptyBoard (startingPosition active) Nothing queue []) leftOver 0
     where (active:queue, leftOver) = splitAt 6 . pieceQueue $ g
 
 cycleActive :: SimulatorState -> Maybe SimulatorState
@@ -115,8 +113,8 @@ applyHurryUp n s
   | n `mod` 20 == 0 = setBoard (hurryUp 1 . board . gs $ s) s
   | otherwise = s
 
-advanceBoard :: MonadRandom m => Int -> SimulatorState -> m SimulatorState
-advanceBoard n state = join . fmap (queueGarbage . applyHurryUp n) . applyGarbage cleared . updateAttack cleared . setBoard brd $ state
+advanceBoard :: MonadRandom m => Int -> SimulatorState -> m (SimulatorState, Int)
+advanceBoard n state = fmap (updateAttack cleared) . join . fmap (queueGarbage . applyHurryUp n) . applyGarbage cleared . setBoard brd $ state
     where (cleared, brd) = clearLines . board . gs $ state
 
 toggleHold :: SimulatorState -> Maybe SimulatorState
@@ -125,7 +123,7 @@ toggleHold state = case held (gs state) of
                      Just k  -> Just . setActive (startingPosition k) . setHeld hld $ state
   where hld = Just . kind . active . gs $ state 
 
-advance :: MonadRandom m => Int -> Action -> SimulatorState -> m (Maybe SimulatorState)
-advance _ Hold s = pure (toggleHold s)
-advance n HardDrop s = fmap cycleActive . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
-advance _ act s = pure . Just . setActive (moveBlock' (board . gs $ s)  act (active . gs $ s)) $ s
+advance :: MonadRandom m => Int -> Action -> SimulatorState -> m (Maybe (SimulatorState, Int))
+advance _ Hold s = pure . fmap (flip (,) 0) . toggleHold $ s
+advance n HardDrop s = fmap (fmap swap . sequence . fmap cycleActive . swap) . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
+advance _ act s = pure . Just . flip (,) 0 . setActive (moveBlock' (board . gs $ s)  act (active . gs $ s)) $ s
