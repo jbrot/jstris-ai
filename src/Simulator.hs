@@ -1,4 +1,4 @@
-module Simulator (simulateAI, simulateAILog, simulateAI') where
+module Simulator (advance, simulateAI, simulateAILog, simulateAI') where
 
 import Control.Monad.Identity
 import Control.Monad.Random

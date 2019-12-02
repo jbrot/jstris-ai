@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e2a478411143a823425492ff9017c1cb3e83075dcf9469aa7cf3ba5a8d30efb2
+-- hash: 7f8bb0503e00fc9fbb5f9008ecd1aa781a83d87b2280611c04120f2aba7728e1
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -42,6 +42,8 @@ library
       MonadRandom
     , aeson
     , base >=4.7 && <5
+    , bytestring
+    , cereal
     , containers
     , finitary
     , finitary-derive
@@ -76,6 +78,8 @@ executable jstris-ai-exe
       MonadRandom
     , aeson
     , base >=4.7 && <5
+    , bytestring
+    , cereal
     , containers
     , finitary
     , finitary-derive
