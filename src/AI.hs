@@ -22,8 +22,8 @@ import Tetris
 
 -- Input: Board (200) + Queue (7 * 5 = 35) + Active (7) + Active Position (2) + Active Rotation (1) + Combo (1) + Incoming (1) = 247
 -- Output: Left | Right | Rotate Left | Rotate Right | Drop (5)
-type NL = '[ FullyConnected 247 256, Relu, FullyConnected 256 256, Relu, FullyConnected 256 5, Softmax ]
-type NNet = Network NL '[ 'D1 247, 'D1 256, 'D1 256, 'D1 256, 'D1 256, 'D1 5, 'D1 5 ]
+type NL = '[ FullyConnected 247 1024, Relu, FullyConnected 1024 5, Softmax ]
+type NNet = Network NL '[ 'D1 247, 'D1 1024, 'D1 1024, 'D1 5, 'D1 5 ]
 
 data AIState = AIState  { nn :: NNet
                         , scombo :: Int 
@@ -53,7 +53,7 @@ sample v = fmap (go v) . getRandomR $ (0,1)
 seedVector :: (KnownNat n, (1 <=? n) ~ 'True) => MonadRandom m => R n -> m (Int, R n)
 seedVector v = fmap (\t -> (t, fromJust . create . flip V.unsafeUpd [(t, 1 / ((unwrap v) V.! t))] $ V.replicate (size v) 0)) (sample v)
 
-apply :: MonadRandom m => NNet -> R 247 -> m (Int, Gradients NL)
+apply :: (MonadRandom m, MonadIO m) => NNet -> R 247 -> m (Int, Gradients NL)
 apply nn v = fmap (fmap (fst . runGradient nn tape . S1D)) (seedVector o)
     where (tape, S1D o) = runNetwork nn (S1D v)
 
@@ -77,7 +77,7 @@ processDrop :: GameState -> AIState -> AIState
 processDrop gs s = if lines > 0 then s{scombo = 1 + scombo s} else s{scombo = 0}
   where lines = fst . clearLines' . addActive . moveActive' HardDrop $ gs
 
-stepAI :: (MonadRandom m) => GameState -> StateT AIState m (Action, Gradients NL)
+stepAI :: (MonadRandom m, MonadIO m) => GameState -> StateT AIState m (Action, Gradients NL)
 stepAI state = do
     (anum, grad) <- join $ liftM2 apply (fmap nn get) (input state)
     let action = case anum of 
@@ -89,7 +89,7 @@ stepAI state = do
     when (action == HardDrop) $ modify (processDrop state)
     pure  (action, grad)
 
-runAI :: (MonadRandom m) => Int -> GameState -> StateT AIState m [(Action, Maybe (Gradients NL))]
+runAI :: (MonadRandom m, MonadIO m) => Int -> GameState -> StateT AIState m [(Action, Maybe (Gradients NL))]
 runAI 0 s = modify (processDrop s) >> pure [(HardDrop, Nothing)]
 runAI n s = do
     (a, g) <- stepAI s
