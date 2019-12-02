@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, GeneralizedNewtypeDeriving, ScopedTypeVariables, TypeFamilies, TypeOperators #-}
-module AI (AIState (AIState), defaultState, parseAI, saveAI, runAI) where
+module AI (NL, NNet, AIState (AIState), defaultState, parseAI, saveAI, stepAI, runAI) where
 
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
@@ -62,12 +62,22 @@ intToAct = undefined
 input :: Monad m => GameState -> StateT AIState m (R 247)
 input = undefined
 
-runAI :: (MonadRandom m) => GameState -> StateT AIState m (Action, Gradients NL)
-runAI state = do
+processDrop :: GameState -> AIState -> AIState
+processDrop gs s = if lines > 0 then s{scombo = 1 + scombo s} else s{scombo = 0}
+  where lines = fst . clearLines' . addActive . moveActive' HardDrop $ gs
+
+stepAI :: (MonadRandom m) => GameState -> StateT AIState m (Action, Gradients NL)
+stepAI state = do
     (anum, grad) <- join $ liftM2 apply (fmap nn get) (input state)
     let action = intToAct anum
-        lines = fst . clearLines' . addActive . moveActive' action $ state
-    when (action == HardDrop) $ if lines > 0
-                                   then modify (\s -> s{scombo = 1 + scombo s})
-                                   else modify (\s -> s{scombo = 0})
+    when (action == HardDrop) $ modify (processDrop state)
     pure  (action, grad)
+
+runAI :: (MonadRandom m) => Int -> GameState -> StateT AIState m [(Action, Maybe (Gradients NL))]
+runAI 0 s = modify (processDrop s) >> pure [(HardDrop, Nothing)]
+runAI n s = do
+    (a, g) <- stepAI s
+    let s' = moveActive' a s
+    case a of
+      HardDrop -> pure [(a, Just g)]
+      otherwise -> fmap ((:) (a, Just g)) (runAI (n - 1) s')

@@ -1,18 +1,40 @@
 module CLI where
 
-import Moo.GeneticAlgorithm.Continuous (Population)
+import AI
+import qualified Data.ByteString as B
+import Grenade (Gradients)
+import Grenade.Exts.Adam
 import Options.Applicative
 
-import AI
 
-data Command = Run (Maybe AIState) String | Simulate (Maybe AIState) Bool | Train (Either Bool (Population Double))
+-- FilePath: Read AIState from file
+-- True: Read AIState from stdin
+-- False: Random AIState
+type AISpec = Either FilePath Bool
 
-aisOpt :: Parser (Maybe AIState)
-aisOpt = optional . fmap (listToAI) . option auto $ opts
-    where opts = short 'a'
-              <> long "ai"
-              <> help "Specify how to weight the AI's neural network. This should be parseable as [Double]. Defaults to random weights."
-              <> metavar "WEIGHTS"
+parseAISpec :: AISpec -> IO AIState
+parseAISpec (Left f) = (either fail pure . parseAI) =<< B.readFile f
+parseAISpec (Right True) = (either fail pure . parseAI ) =<< B.getContents
+parseAISpec (Right False) = defaultState
+
+data Command = Run AISpec String | Simulate AISpec Bool | Train (Adam (Gradients NL))
+
+aiFileOpt :: Parser FilePath 
+aiFileOpt = strOption $ opts
+    where opts = short 'f'
+              <> long "file"
+              <> help "Load the AI from the specified file."
+              <> metavar "FILE"
+
+aiStdFlag :: Parser Bool
+aiStdFlag = flag False True opts
+    where opts = short 'i'
+              <> long "stdin"
+              <> help "Read the AI from stdin."
+
+aiSpecOpt :: Parser AISpec
+aiSpecOpt = fmap Left aiFileOpt <|> fmap Right aiStdFlag
+
 
 urlOpt :: Parser String
 urlOpt = fmap ("https://jstris.jezevec10.com/" <>) . strOption $ opts
@@ -28,19 +50,36 @@ verboseFlag = flag False True opts
               <> long "verbose"
               <> help "Whether to print out the game state after each tick."
 
-popCliOpt :: Parser (Population Double)
-popCliOpt = option auto $ opts
-    where opts = short 'p'
-              <> long "population"
-              <> help "Specify the population to start the training with."
-              <> metavar "POPULATION"
+alphaOpt :: Parser Double
+alphaOpt = option auto $ opts
+    where opts = short 'a'
+              <> long "alpha"
+              <> help "Adam's learning rate"
+              <> value 0.001
+              <> metavar "LR"
 
-popStdFlag :: Parser Bool
-popStdFlag = flag False True opts
-    where opts = short 'i'
-              <> long "stdin"
-              <> help "Read the starting population from stdin."
+beta1Opt :: Parser Double
+beta1Opt = option auto $ opts
+    where opts = short 'b'
+              <> long "beta1"
+              <> help "Adam's running average coefficient for the gradient"
+              <> value 0.9
+              <> metavar "C"
+beta2Opt :: Parser Double
+beta2Opt = option auto $ opts
+    where opts = short 'B'
+              <> long "beta2"
+              <> help "Adam's running average coefficient for the gradient squared"
+              <> value 0.999
+              <> metavar "C"
 
+epsOpt :: Parser Double
+epsOpt = option auto $ opts
+    where opts = short 'e'
+              <> long "epsilon"
+              <> help "Term added to increase numerical stability"
+              <> value 1e-8
+              <> metavar "C"
 
 parserInfo :: ParserInfo Command
 parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an AI that can play jstris, an online, multiplayer version of Tetris found at https://jstris.jezevec10.com/.")
@@ -49,10 +88,11 @@ parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an
             , ("simulate", "Run the AI locally.", simP)
             , ("train", "Train a new AI.", trainP)
             ]
-          runP   = Run <$> aisOpt <*> urlOpt
-          simP   = Simulate <$> aisOpt <*> verboseFlag
-          trainP = Train <$> (fmap Right popCliOpt <|> fmap Left popStdFlag)
+          runP   = Run <$> aiSpecOpt <*> urlOpt
+          simP   = Simulate <$> aiSpecOpt <*> verboseFlag
+          trainP = fmap Train $ Adam <$> fmap rtf alphaOpt <*> fmap rtf beta1Opt <*> fmap rtf beta2Opt <*> fmap rtf epsOpt <*> pure (rtf 0) <*> pure (rtf 0) <*> pure 0
           command' (n,d,p) = command n . info p . progDesc $ d
+          rtf = realToFrac
 
 
 processCLI :: IO Command

@@ -1,4 +1,4 @@
-module Simulator (advance, simulateAI, simulateAILog, simulateAI') where
+module Simulator (SimulatorState, startingState, advance) where
 
 import Control.Monad.Identity
 import Control.Monad.Random
@@ -9,7 +9,6 @@ import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as MV
 import System.Random.Shuffle
 
-import AI
 import Tetris
 
 data SimulatorState = SimulatorState { gs :: GameState
@@ -130,32 +129,3 @@ advance :: MonadRandom m => Int -> Action -> SimulatorState -> m (Maybe Simulato
 advance _ Hold s = pure (toggleHold s)
 advance n HardDrop s = fmap cycleActive . advanceBoard n . setBoard (dropBlock (board . gs $ s) (active . gs $ s)) $ s
 advance _ act s = pure . Just . setActive (moveBlock' (board . gs $ s)  act (active . gs $ s)) $ s
-
-simulateAI_ :: (Monad m, RandomGen g) => (SimulatorState -> m ()) -> Int -> g -> AIState -> m ((Int, Int), g)
-simulateAI_ hook max gen = flip runRandT g1 . evalStateT (go 0 st0)
-    where (g0, g1) = (gen, gen) --split gen
-          st0 = startingState g0
-          -- This can't be uncommented without enabling ScopedTypeVariables.
-          -- go :: Int -> SimulatorState -> StateT AIState (RandT g m) (Int, Int)
-          go n st = if n == max then pure (max, attacks st) else do
-              lift . lift . hook $ st
-              actions <- runAI . gs $ st
-              st' <- foldl (\st' act -> join . fmap (fmap join . sequence . fmap (advance n act)) $ st') (pure $ Just st) actions
-              case st' of
-                Just s -> go (n + 1) s
-                Nothing -> pure (n, attacks st)
-
-simulateAI :: (Monad m, RandomGen g) => Int -> g -> AIState -> m ((Int, Int), g)
-simulateAI = simulateAI_ (\_ -> pure ())
-
-simulateAILog :: (MonadIO m, RandomGen g) => Int -> g -> AIState -> m ((Int, Int), g)
-simulateAILog = simulateAI_ log
-    where disp :: MonadIO m => SimulatorState -> m ()
-          disp state = liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ state) . active . gs $ state
-          log :: MonadIO m => SimulatorState -> m ()
-          log st = do 
-              disp st
-              liftIO . putStrLn $ "Combo: " ++ (show (combo st)) ++ " Total Attack: " ++ (show (attacks st)) ++ "\nIncoming: " ++ (show . garbage . gs  $ st) ++ "\n"
-
-simulateAI' :: (Monad m, RandomGen g) => Int -> g -> AIState -> m (Int, Int)
-simulateAI' max gen = fmap fst . simulateAI max gen
