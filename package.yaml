@@ -25,6 +25,8 @@ dependencies:
 - containers
 - finitary
 - finitary-derive
+- ghc-prim
+- grenade
 - hmatrix
 - logict
 - MonadRandom
@@ -34,6 +36,7 @@ dependencies:
 - parallel
 - random
 - random-shuffle
+- singletons
 - text
 - time
 - transformers

@@ -48,6 +48,8 @@ extra-deps:
 - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
 - moo-1.2@sha256:0c4be1a01548db785dcbbe6b8c98579dbf03c5b3b536e0420dce3ba6a61337cb,5951
 - gray-code-0.3.1@sha256:2c8a4ed9c9ee37320305610604d6d93504e0813d7c9768949af418b53043185a,2388
+- git: https://github.com/jbrot/grenade.git
+  commit: 4b5a6ee64184611c8558f87c41cd4424ce3a4cbe
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

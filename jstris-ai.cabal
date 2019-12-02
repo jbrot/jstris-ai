@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bc0c6aa7a02b42ab32fb43b4b9a2cb14397402c7f36ed5a1198557e3e2514f2d
+-- hash: e2a478411143a823425492ff9017c1cb3e83075dcf9469aa7cf3ba5a8d30efb2
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -28,6 +28,10 @@ source-repository head
 library
   exposed-modules:
       AI
+      Grenade.Exts
+      Grenade.Exts.Adam
+      Grenade.Exts.Gradient
+      Grenade.Exts.Layer
       Simulator
       Tetris
   other-modules:
@@ -41,6 +45,8 @@ library
     , containers
     , finitary
     , finitary-derive
+    , ghc-prim
+    , grenade
     , hmatrix
     , logict
     , moo
@@ -49,6 +55,7 @@ library
     , parallel
     , random
     , random-shuffle
+    , singletons
     , text
     , time
     , transformers
@@ -72,6 +79,8 @@ executable jstris-ai-exe
     , containers
     , finitary
     , finitary-derive
+    , ghc-prim
+    , grenade
     , hmatrix
     , jstris-ai
     , logict
@@ -81,6 +90,7 @@ executable jstris-ai-exe
     , parallel
     , random
     , random-shuffle
+    , singletons
     , text
     , time
     , transformers
