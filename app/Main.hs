@@ -131,7 +131,7 @@ runSimulation :: AIState -> Bool -> IO ()
 runSimulation ai v = flip evalStateT ai . go 0 . startingState =<< getStdGen
     where go :: Int -> SimulatorState -> StateT AIState IO ()
           go n st = do
-              when v . liftIO . printBoard . addActiveBlock (board . gs $ st) . active . gs $ st
+              when v . liftIO . (>> putStrLn "") . printBoard . addActiveBlock (board . gs $ st) . active . gs $ st
               acts <- runAI 10 (gs st)
               let acts' :: [Maybe SimulatorState -> StateT AIState IO (Maybe SimulatorState)]
                   acts' = fmap (\(a,_) -> fmap join . sequence . fmap (advance n a)) acts

@@ -24,7 +24,7 @@ import GHC.Generics
 import Text.Printf
 
 data Block = I | J | L | O | S | T | Z
-    deriving (Eq, Show, Ord, Generic, Finitary)
+    deriving (Eq, Show, Ord, Enum, Generic, Finitary)
 
 type Row = Int
 type Col = Int
