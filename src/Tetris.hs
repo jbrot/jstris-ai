@@ -12,7 +12,7 @@ module Tetris ( Block (I, J, L, O, S, T, Z)
 import Control.Monad.Random
 import Data.Finitary
 import Data.Finitary.Finiteness
-import Data.Finitary.PackBits (PackBits)
+import Data.Finitary.PackBytes (PackBytes)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe
@@ -50,17 +50,17 @@ data Square = Empty | Garbage | Remnant Block | HurryUp
     deriving (Eq, Show, Generic, Finitary)
     deriving Ord via Finiteness Square
 
-pack :: Square -> PackBits Square
+pack :: Square -> PackBytes Square
 pack = fromFinite . toFinite
-unpack :: PackBits Square -> Square
+unpack :: PackBytes Square -> Square
 unpack = fromFinite . toFinite
 
-type Board = Vector (PackBits Square)
+type Board = Vector (PackBytes Square)
 
 boardIndex :: Pos -> Int
 boardIndex (r,c) = 10 * r + c
 
-getSquare :: Pos -> Board -> PackBits Square
+getSquare :: Pos -> Board -> PackBytes Square
 getSquare p b = b V.! (boardIndex p)
 
 isEmpty :: Board -> Pos -> Bool
@@ -175,7 +175,7 @@ reduceGarbage c g@GameState{garbage = ct:gbs}
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
-    where printSquare :: PackBits Square -> IO ()
+    where printSquare :: PackBytes Square -> IO ()
           printSquare s = let (r,g,b) = sqColor (unpack s) in printf "\x1b[48;2;%d;%d;%dm%c" r g b (sqChar . unpack $ s)
           printRow :: Board -> Row -> IO ()
           printRow b r = (>> printf "\x1b[0m\n") . sequence . fmap (printSquare . (\c -> getSquare (r, c) b)) $ [0..9]
