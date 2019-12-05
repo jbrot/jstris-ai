@@ -1,39 +1,33 @@
+import Control.Monad.IO.Class
+import Control.Monad.Random
 import Criterion.Main
-import Data.Char
-import Text.Printf
+import System.Random
 
-strip :: String -> String
-strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+import TestMC
+import Tetris
+import Simulator
 
-main = let
-  startWhiteSpaces :: String
-  startWhiteSpaces = "   "
-
-  endWhiteSpaces :: String
-  endWhiteSpaces = " \t   "
-
-  short    = 5
-  middle   = 50
-  long     = 100
-  veryLong = 1000
-
-  shortStr :: String
-  shortStr = startWhiteSpaces ++ replicate short 'a' ++ endWhiteSpaces
-
-  middleStr :: String
-  middleStr = startWhiteSpaces ++ replicate middle 'a' ++ endWhiteSpaces
-
-  longStr :: String
-  longStr = startWhiteSpaces ++ replicate long 'a' ++ endWhiteSpaces
-
-  veryLongStr :: String
-  veryLongStr = startWhiteSpaces ++ replicate veryLong 'a' ++ endWhiteSpaces
-
-  in defaultMain [
-       bgroup "strip" [ bench "foo bar"   $ whnf strip " foo bar     "
-                      , bench (printf "short (len:%d)" short)         $ whnf strip shortStr
-                      , bench (printf "middle (len:%d)" middle)       $ whnf strip middleStr
-                      , bench (printf "long (len: %d)" long)          $ whnf strip longStr
-                      , bench (printf "very long (len: %d)" veryLong) $ whnf strip veryLongStr
+main = defaultMain [
+       bgroup "strip" [ bench "10 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 10) =<< getStdGen)
+                      , bench "20 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 20) =<< getStdGen)
                       ]
        ]
+
+runSimulation :: RandomGen g => MonadIO m => g -> Int -> m (Int, g)
+runSimulation g max = flip runRandT g . go 0 . startingState $ g
+    where go :: (MonadRandom m, MonadIO m) => Int -> SimulatorState -> m Int
+          go i s | i >= max  = pure i
+                 | otherwise = do
+                     (i', ms) <- stepSimulation i s
+                     case ms of
+                       Nothing -> pure i'
+                       Just s' -> go i' s'
+
+
+stepSimulation :: (MonadRandom m, MonadIO m) => Int -> SimulatorState -> m (Int, Maybe SimulatorState)
+stepSimulation i s = monteCarloStep (gs s) >>= go i s
+    where go :: (MonadRandom m, MonadIO m) => Int ->  SimulatorState -> [Action] -> m (Int, Maybe SimulatorState)
+          go i s [] = pure (i, Just s)
+          go i s (a:as) = advance i a s >>= \x -> case x of
+                                                    Nothing -> pure (i, Nothing)
+                                                    Just (s', i') -> go i' s' as
