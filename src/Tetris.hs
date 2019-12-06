@@ -171,7 +171,7 @@ moveBlock' b a ab = fromMaybe ab (moveBlock b a ab)
 
 data GameState = GameState { board :: Board
                            , active :: ActiveBlock
-                           , held :: Maybe Block
+                           , held :: (Maybe Block)
                            , queue :: [Block]
                            , garbage :: [Int]
                            }
