@@ -65,9 +65,9 @@ isEmpty b p = getSquare p b == Empty
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
 canAddActiveBlock board ab = U.ifoldr chk True mask
     where (r,c) = pos ab
-          mask = U.map (`shiftL` (8 + c)) (rotMaskMap M.! (kind ab, rot ab))
+          mask = (rotMaskMap M.! (kind ab, rot ab))
           chk i m False = False
-          chk i m True = m .&. (rowMask (r + (fromInteger . getFinite $ i)) board) == 0
+          chk i m True = (m `shiftL` (8 + c)) .&. (rowMask (r + (fromInteger . getFinite $ i)) board) == 0
 
 validateAB :: Board -> ActiveBlock -> Maybe ActiveBlock
 validateAB b a = if canAddActiveBlock b a then Just a else Nothing
