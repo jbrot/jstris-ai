@@ -9,6 +9,8 @@ import Data.Text (Text)
 import qualified Test.WebDriver.Common.Keys as K
 
 import Tetris
+import Tetris.Block
+import Tetris.Board
 
 idsToBlock :: Map Int Block
 idsToBlock = M.fromList [ (0, I)
@@ -22,13 +24,13 @@ idsToBlock = M.fromList [ (0, I)
 
 colorsToSquare :: Map Int Square
 colorsToSquare = M.fromList [ (0, Empty)
-                            , (1, Remnant Z)
-                            , (2, Remnant L)
-                            , (3, Remnant O)
-                            , (4, Remnant S)
-                            , (5, Remnant I)
-                            , (6, Remnant J)
-                            , (7, Remnant T)
+                            , (1, Garbage)
+                            , (2, Garbage)
+                            , (3, Garbage)
+                            , (4, Garbage)
+                            , (5, Garbage)
+                            , (6, Garbage)
+                            , (7, Garbage)
                             , (8, Garbage)
                             , (9, HurryUp)
                             ]

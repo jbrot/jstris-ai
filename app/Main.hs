@@ -10,6 +10,7 @@ import CLI
 import Online
 import Simulator
 import Tetris
+import Tetris.Board
 import Train
 
 main :: IO ()

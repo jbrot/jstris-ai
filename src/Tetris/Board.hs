@@ -55,7 +55,7 @@ rowMask r (_, contents)
 getSquare :: Pos -> Board -> Square
 getSquare (r,c) board
   | r >= 0 && r < 20 && (fst board) `U.unsafeIndex` r = HurryUp
-  | (rowMask r board) `shiftR` (8 + c) == 0 = Empty
+  | ((rowMask r board) `shiftR` (8 + c)) .&. 1 == 0 = Empty
   | otherwise = Garbage
 
 isEmpty :: Board -> Pos -> Bool
@@ -114,7 +114,7 @@ clearLines board = foldr remove (0, board) . filter (complete board) . reverse $
 
 addGarbageLines :: Int -> Col -> Board -> Board
 addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x <- [endI - 1 - n .. endI - 1]])
-    where endI = U.foldr (\b i -> if b then 0 else i) 0 hurry
+    where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 hurry
           nind i = let i' = fromInteger . getFinite $ i in if i' > (endI - 1 - n) then i' else i' + n
           cts' = U.backpermute cts ((U.generate nind) :: Vector 20 Int)
           grb_row = complement (1 `shiftL` (col + 8))
@@ -123,7 +123,7 @@ addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x
 hurryUp :: Int -> Board -> Board
 hurryUp n = markHU . addGarbageLines n 32
     where markHU (h,c) = (h `U.unsafeUpd` [(x, True) | x <- [endI - 1 - n .. endI - 1]], c)
-            where endI = U.foldr (\b i -> if b then 0 else i) 0 h
+            where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 h
 
 -- Board -> Combo -> Cleared -> LinesSent
 -- Combo counts consecutive clears, so if cleared > 0, then combo >= 1.
@@ -184,7 +184,7 @@ rotMaskMap = M.map posToMask rotMap
 
 posToMask :: [Pos] -> Vector 4 Word32
 posToMask [] = U.replicate 0
-posToMask ((r,c):ps) = runIdentity $ U.ix (finite . toInteger $ r) (\v -> pure $ v .|. (1 `shiftL` (8 + c))) $ posToMask ps
+posToMask ((r,c):ps) = runIdentity $ U.ix (finite . toInteger $ r) (\v -> pure $ v .|. (1 `shiftL` c)) $ posToMask ps
 
 rotMap :: Map (Block, Rot) [Pos]
 rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])

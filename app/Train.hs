@@ -11,6 +11,7 @@ import AI
 import Grenade.Exts
 import Simulator
 import Tetris
+import Tetris.Board
 
 data TState = TState { ss :: SimulatorState
                      , as :: AIState

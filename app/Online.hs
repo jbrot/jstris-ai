@@ -7,9 +7,11 @@ import Control.Monad.Trans.Random.Strict
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
 import Data.Text (Text)
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector as V
+import qualified Data.Vector.Sized as VS
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Maybe (fromJust)
 import System.Random
 import Test.WebDriver
 import Test.WebDriver.Commands.Wait
@@ -18,6 +20,8 @@ import Test.WebDriver.JSON (ignoreReturn)
 import AI
 import Parse
 import Tetris
+import Tetris.Block
+import Tetris.Board
 
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig
@@ -36,7 +40,7 @@ nextState curr = waitUntil' 10000 600 $ do
     expect $ count > curr
 
     (matrix, act, hld, q, inc) <- executeJS [] "return [window.game.matrix, window.game.activeBlock, window.game.blockInHold, window.game.queue, window.game.incomingGarbage]"
-    let brd = V.map (pack . (colorsToSquare M.!)) . mconcat $ matrix
+    let brd = fromSquares . fromJust . VS.toSized . V.map (fromJust . VS.toSized . V.map (colorsToSquare M.!)) $ matrix
         garbage = fmap head $ inc
         gs = GameState brd act (kind <$> hld) (kind <$> q) garbage
     pure (count, gs, inc)

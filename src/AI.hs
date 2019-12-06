@@ -66,7 +66,7 @@ encodeA :: ActiveBlock -> R 10
 encodeA a = encodeV (kind a) & (realToFrac . fst . pos $ a) & (realToFrac . snd . pos $ a) & (realToFrac . rot $ a)
 
 encodeB :: Board -> R 200
-encodeB = undefined -- fromJust . create . V.convert . U.map (\x -> if (x == pack Empty) then 0 else 1)
+encodeB _ = konst 0 -- fromJust . create . V.convert . U.map (\x -> if (x == pack Empty) then 0 else 1)
 
 input :: Monad m => GameState -> StateT AIState m (R 247)
 input gs = fmap (\ais -> b # q # a & (realToFrac . scombo $ ais) & (realToFrac . sum . garbage $ gs)) get
