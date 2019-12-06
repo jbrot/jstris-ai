@@ -26,7 +26,7 @@ data Square = Empty | Garbage | HurryUp
 
 data Board = Board { hurry :: Vector 20 Bool
                    , contents :: Vector 20 Word32
-                   , cols :: Vector 10 Word8
+                   , mheight :: Int
                    }
 
 emptyRow :: Word32
@@ -36,19 +36,19 @@ fullRow :: Word32
 fullRow = maxBound
 
 emptyBoard :: Board
-emptyBoard = Board (U.replicate False) (U.replicate emptyRow) (U.replicate 21)
+emptyBoard = Board (U.replicate False) (U.replicate emptyRow) 21
 
-height_ :: Col -> Vector 20 Word32 -> Word8
-height_ c cts = U.ifoldr (\i row r -> if (row `shiftR` (c + 8)) .&. 1 == 0 then (fromInteger . getFinite $ i) else r) 21 cts
+height_ :: Vector 20 Word32 -> Col -> Int
+height_ cts c = U.ifoldr (\i row r -> if (row `shiftR` (c + 8)) .&. 1 == 0 then (fromInteger . getFinite $ i) else r) 21 cts
 
-height :: Col -> Board -> Word8
-height c = height_ c . contents
+height :: Board -> Col -> Int
+height b = height_ (contents b)
 
 fromSquares :: V.Vector 20 (V.Vector 10 Square) -> Board
-fromSquares v = Board hry cts cls
+fromSquares v = Board hry cts ht
     where hry = U.generate (\n -> (v `V.index` n) `V.index` 0 == HurryUp)
           cts = U.generate (\n -> encodeRow (v `V.index` n))
-          cls = U.generate (\n -> height_ (fromInteger . getFinite $ n) cts)
+          ht = minimum . fmap (height_ cts) $ [0..9]
           encodeRow :: V.Vector 10 Square -> Word32
           encodeRow = (.|. 255) . (`shiftL` 8) . foldr (\s v -> (v `shiftL` 1) .|. (if s == Empty then 0 else 1)) maxBound
 
@@ -75,9 +75,8 @@ isEmpty b p = getSquare p b == Empty
 
 -- Are all the spaces occupied by the ActiveBlock empty?
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
-canAddActiveBlock board ab = if c >= 0 && c < 6 && r + 4 < (fromInteger . toInteger $ minH) then True else U.ifoldr chk True mask
+canAddActiveBlock board ab = if c >= 0 && c < 6 && r + 4 < mheight board then True else U.ifoldr chk True mask
     where (r,c) = pos ab
-          minH = minimum . fmap ((U.index) (cols board) . finite . toInteger) . filter (\x -> x >= 0 && x < 10) $ [c .. c + 3]
           mask = (rotMaskMap M.! (kind ab, rot ab))
           chk i m b = if (m `shiftL` (8 + c)) .&. (rowMask (r + (fromInteger . getFinite $ i)) board) == 0 then b else False
 
@@ -87,13 +86,13 @@ validateAB b a = if canAddActiveBlock b a then Just a else Nothing
 -- Replaces the squares in the board the ActiveBlock occupies with the appropriate remnants.
 -- Does not check if spaces are overwritten.
 addActiveBlock :: Board -> ActiveBlock -> Board
-addActiveBlock board ab = board{contents = cts', cols = cls'}
+addActiveBlock board ab = board{contents = cts', mheight = min ht' (mheight board)}
     where (r,c) = pos ab
           mask = U.map (`shiftL` (8 + c)) (rotMaskMap M.! (kind ab, rot ab))
           upd i m vc = if i' < 0 || i' >= 20 then vc else U.unsafeUpd vc [(i', (vc `U.unsafeIndex` i') .|. m)]
             where i' = r + (fromInteger . getFinite $ i)
           cts' = U.ifoldr upd (contents board) mask
-          cls' = ((U.//) (cols board)) . fmap (\c -> (finite . toInteger $ c, height_ c cts')) . filter (\x -> x >= 0 && x < 10) $ [c .. c + 3]
+          ht' = minimum . fmap (height_ cts') . filter (\x -> x >= 0 && x < 10) $ [c .. c + 3]
 
 -- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
 -- Will only return Nothing if the current position is invalid.
@@ -127,13 +126,12 @@ clearLines board = foldr remove (0, board) . filter (complete board) . reverse $
                       cts' = U.backpermute (contents brd) upd
 
 addGarbageLines :: Int -> Col -> Board -> Board
-addGarbageLines n col brd  = brd{contents = cts1, cols = cols'}
+addGarbageLines n col brd  = brd{contents = cts1, mheight = max 0 (mheight brd - n) }
     where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 (hurry brd)
           nind i = let i' = fromInteger . getFinite $ i in if i' > (endI - 1 - n) then i' else i' + n
           cts0 = U.backpermute (contents brd) ((U.generate nind) :: Vector 20 Int)
           cts1 = cts0 `U.unsafeUpd` [(x, grb_row) | x <- [endI - 1 - n .. endI - 1]]
           grb_row = complement (1 `shiftL` (col + 8))
-          cols' = U.map (\h -> h - min h (fromInteger. toInteger $ n)) . cols $ brd
 
 -- Add `n` hurry up lines to the board.
 hurryUp :: Int -> Board -> Board
