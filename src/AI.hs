@@ -19,6 +19,8 @@ import Numeric.LinearAlgebra.Static
 import System.Random
 
 import Tetris
+import Tetris.Block
+import Tetris.Board
 
 -- Input: Board (200) + Queue (7 * 5 = 35) + Active (7) + Active Position (2) + Active Rotation (1) + Combo (1) + Incoming (1) = 247
 -- Output: Left | Right | Rotate Left | Rotate Right | Drop (5)
@@ -64,7 +66,7 @@ encodeA :: ActiveBlock -> R 10
 encodeA a = encodeV (kind a) & (realToFrac . fst . pos $ a) & (realToFrac . snd . pos $ a) & (realToFrac . rot $ a)
 
 encodeB :: Board -> R 200
-encodeB = fromJust . create . V.convert . U.map (\x -> if (x == pack Empty) then 0 else 1)
+encodeB = undefined -- fromJust . create . V.convert . U.map (\x -> if (x == pack Empty) then 0 else 1)
 
 input :: Monad m => GameState -> StateT AIState m (R 247)
 input gs = fmap (\ais -> b # q # a & (realToFrac . scombo $ ais) & (realToFrac . sum . garbage $ gs)) get

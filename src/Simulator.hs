@@ -11,6 +11,8 @@ import qualified Data.Vector.Unboxed.Mutable as MV
 import System.Random.Shuffle
 
 import Tetris
+import Tetris.Block
+import Tetris.Board
 
 data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]
@@ -49,42 +51,9 @@ queueGarbage s = getRandomR (0, garbageTime) >>= \r ->
            ct <- sampleHistogram garbageHistogram
            queueGarbage . updateGS (\g -> g{garbage = garbage g <> [ct]}) $ s
 
-
-hurryUp :: Int -> Board -> Board
-hurryUp n = V.modify (\v -> do
-    let len = (20 - n) * 10
-    MV.move (MV.slice 0 len v) (MV.slice (10 * n) len v)
-    MV.set (MV.slice len (10 * n) v) (pack HurryUp))
-
 updateAttack :: Int -> SimulatorState -> (SimulatorState, Int)
-updateAttack cleared s = (s{combo = cbo}, cboLines + clearedLines)
+updateAttack cleared s = (s{combo = cbo}, attackLines (board . gs $ s) cbo cleared)
     where cbo = if cleared > 0 then 1 + combo s else 0
-          cboLines = case cbo - 1 of
-                       -1 -> 0
-                       0  -> 0
-                       1  -> 0
-                       2  -> 1
-                       3  -> 1
-                       4  -> 1
-                       5  -> 2
-                       6  -> 2
-                       7  -> 3
-                       8  -> 3
-                       9  -> 4
-                       10 -> 4
-                       11 -> 4
-                       otherwise -> 5
-          clearedLines = if (V.null . V.filter (\x -> x /= pack Empty) . board . gs $ s)
-                            then 10 -- Perfect clear
-                            else case cleared of
-                                     0 -> 0
-                                     1 -> 0
-                                     2 -> 1
-                                     3 -> 2
-                                     4 -> 4
-
-emptyBoard :: Board
-emptyBoard = V.replicate 200 (pack Empty)
 
 pieceQueue :: RandomGen g => g -> [Block]
 pieceQueue = runIdentity . evalRandT (fmap mconcat . sequence . repeat . shuffleM $ [ I, J, L, O, S, T, Z ])

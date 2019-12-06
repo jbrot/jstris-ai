@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5cf5b231b8bb62f952f5a9e7a2691fccafeb31c307abfe19f6749c4fde9ff33d
+-- hash: 3b8326833b5db0e24aaea712e7ee0342d2a0f09fc727e53414ac71d140d8ece1
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -34,6 +34,8 @@ library
       Grenade.Exts.Layer
       Simulator
       Tetris
+      Tetris.Block
+      Tetris.Board
   other-modules:
       Paths_jstris_ai
   hs-source-dirs:
@@ -47,6 +49,7 @@ library
     , containers
     , finitary
     , finitary-derive
+    , finite-typelits
     , ghc-prim
     , grenade
     , hmatrix
@@ -61,6 +64,7 @@ library
     , time
     , transformers
     , vector
+    , vector-sized
     , webdriver
   default-language: Haskell2010
 
@@ -84,6 +88,7 @@ executable jstris-ai-exe
     , containers
     , finitary
     , finitary-derive
+    , finite-typelits
     , ghc-prim
     , grenade
     , hmatrix
@@ -99,6 +104,7 @@ executable jstris-ai-exe
     , time
     , transformers
     , vector
+    , vector-sized
     , webdriver
   default-language: Haskell2010
 
@@ -121,6 +127,7 @@ benchmark jstris-ai-bench
     , criterion
     , finitary
     , finitary-derive
+    , finite-typelits
     , ghc-prim
     , grenade
     , hmatrix
@@ -136,5 +143,6 @@ benchmark jstris-ai-bench
     , time
     , transformers
     , vector
+    , vector-sized
     , webdriver
   default-language: Haskell2010

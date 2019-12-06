@@ -12,6 +12,8 @@ import qualified Data.Vector as V
 import Data.Maybe
 
 import Tetris
+import Tetris.Block
+import Tetris.Board
 
 monteCarloStep :: (MonadIO m, MonadRandom m) => GameState -> m [Action]
 monteCarloStep state = do

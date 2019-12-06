@@ -25,6 +25,7 @@ dependencies:
 - bytestring
 - cereal
 - containers
+- finite-typelits
 - finitary
 - finitary-derive
 - ghc-prim
@@ -42,6 +43,7 @@ dependencies:
 - time
 - transformers
 - vector
+- vector-sized
 - webdriver
 
 library:
