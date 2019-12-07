@@ -8,8 +8,8 @@ import System.Random
 import AI
 import CLI
 import Online
-import Simulator
 import Tetris.Board
+import Tetris.Simulator
 import Tetris.State
 import Train
 

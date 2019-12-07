@@ -39,10 +39,10 @@ nextState curr = waitUntil' 10000 600 $ do
     count <- executeJS [] "return window.fcount;"
     expect $ count > curr
 
-    (matrix, act, hld, q, inc) <- executeJS [] "return [window.game.matrix, window.game.activeBlock, window.game.blockInHold, window.game.queue, window.game.incomingGarbage]"
+    (matrix, act, hld, hldUsed, cbo, q, inc) <- executeJS [] "return [window.game.matrix, window.game.activeBlock, window.game.blockInHold, window.game.holdUsedAlready, window.game.comboCounter, window.game.queue, window.game.incomingGarbage]"
     let brd = fromSquares . fromJust . VS.toSized . V.map (fromJust . VS.toSized . V.map (colorsToSquare M.!)) $ matrix
         garbage = fmap head $ inc
-        gs = GameState brd act (kind <$> hld) (kind <$> q) garbage
+        gs = GameState brd act (kind <$> hld) (not hldUsed) (cbo + 1) (kind <$> q) garbage
     pure (count, gs, inc)
 
 type Lines = Map Int Int

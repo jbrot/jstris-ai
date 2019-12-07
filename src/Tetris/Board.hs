@@ -91,7 +91,7 @@ clearLines board = foldr remove (0, board) . filter (complete board) . reverse $
                       cts' = U.backpermute contents upd
 
 addGarbageLines :: Int -> Col -> Board -> Board
-addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x <- [endI - 1 - n .. endI - 1]])
+addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x <- [endI - n .. endI - 1]])
     where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 hurry
           nind i = let i' = fromInteger . getFinite $ i in if i' > (endI - 1 - n) then i' else i' + n
           cts' = U.backpermute cts ((U.generate nind) :: Vector 20 Int)
@@ -100,7 +100,7 @@ addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x
 -- Add `n` hurry up lines to the board.
 hurryUp :: Int -> Board -> Board
 hurryUp n = markHU . addGarbageLines n 32
-    where markHU (h,c) = (h `U.unsafeUpd` [(x, True) | x <- [endI - 1 - n .. endI - 1]], c)
+    where markHU (h,c) = (h `U.unsafeUpd` [(x, True) | x <- [endI - n .. endI - 1]], c)
             where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 h
 
 printBoard :: Board -> IO ()
