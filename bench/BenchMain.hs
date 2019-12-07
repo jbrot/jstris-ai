@@ -1,10 +1,9 @@
 import Control.Monad.IO.Class
 import Control.Monad.Random
 import Criterion.Main
-import System.Random
 
 import TestMC
-import Tetris
+import Tetris.Action
 import Simulator
 
 main = defaultMain [

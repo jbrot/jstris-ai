@@ -10,8 +10,9 @@ import Text.Printf
 import AI
 import Grenade.Exts
 import Simulator
-import Tetris
+import Tetris.Action
 import Tetris.Board
+import Tetris.State
 
 data TState = TState { ss :: SimulatorState
                      , as :: AIState

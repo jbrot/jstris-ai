@@ -3,7 +3,6 @@ module AI (NL, NNet, AIState (AIState), nn, defaultState, parseAI, saveAI, stepA
 
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
-import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Maybe (fromJust)
 import Data.Serialize (encode, decode)
@@ -11,16 +10,14 @@ import Data.Singletons
 import Data.Singletons.Prelude.Bool
 import Data.Singletons.Prelude.Num
 import Data.Singletons.TypeLits
-import Data.Type.Equality ((:~:)(..))
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Storable as V
 import Grenade
 import Numeric.LinearAlgebra.Static
-import System.Random
 
-import Tetris
+import Tetris.Action
 import Tetris.Block
 import Tetris.Board
+import Tetris.State
 
 -- Input: Board (200) + Queue (7 * 5 = 35) + Active (7) + Active Position (2) + Active Rotation (1) + Combo (1) + Incoming (1) = 247
 -- Output: Left | Right | Rotate Left | Rotate Right | Drop (5)
@@ -87,7 +84,7 @@ stepAI state = do
                     1 -> MoveRight
                     2 -> RotateLeft
                     3 -> RotateRight
-                    otherwise -> HardDrop
+                    _ -> HardDrop
     when (action == HardDrop) $ modify (processDrop state)
     pure  (action, grad)
 
@@ -98,4 +95,4 @@ runAI n s = do
     let s' = moveActive' a s
     case a of
       HardDrop -> pure [(a, Just g)]
-      otherwise -> fmap ((:) (a, Just g)) (runAI (n - 1) s')
+      _ -> fmap ((:) (a, Just g)) (runAI (n - 1) s')

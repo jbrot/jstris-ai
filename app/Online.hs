@@ -19,9 +19,9 @@ import Test.WebDriver.JSON (ignoreReturn)
 
 import AI
 import Parse
-import Tetris
 import Tetris.Block
 import Tetris.Board
+import Tetris.State
 
 chromeConfig :: WDConfig
 chromeConfig = useBrowser chrome defaultConfig

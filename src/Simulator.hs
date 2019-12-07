@@ -2,17 +2,14 @@ module Simulator (SimulatorState(..), startingState, advance) where
 
 import Control.Monad.Identity
 import Control.Monad.Random
-import Control.Monad.Trans.State.Strict
 import Data.Maybe (fromJust)
 import Data.Tuple (swap)
-import Data.Vector.Unboxed (Vector)
-import qualified Data.Vector.Unboxed as V
-import qualified Data.Vector.Unboxed.Mutable as MV
 import System.Random.Shuffle
 
-import Tetris
+import Tetris.Action
 import Tetris.Block
 import Tetris.Board
+import Tetris.State
 
 data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]
@@ -29,8 +26,6 @@ setActive :: ActiveBlock -> SimulatorState -> SimulatorState
 setActive a = updateGS $ \g -> g{active = a}
 setHeld :: Maybe Block -> SimulatorState -> SimulatorState
 setHeld b = updateGS $ \g -> g{held = b}
-setQueue :: [Block] -> SimulatorState -> SimulatorState
-setQueue q = updateGS $ \g -> g{queue = q}
 
 garbageHistogram = [(1,517),(2,111),(3,27),(4,52),(5,16),(7,1),(10,3)]
 garbageTime = 10081

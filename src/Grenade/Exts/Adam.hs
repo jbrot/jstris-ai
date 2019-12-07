@@ -2,7 +2,7 @@
 module Grenade.Exts.Adam where
 
 import Grenade
-import Grenade.Exts.Gradient
+import Grenade.Exts.Gradient ()
 import Grenade.Exts.Layer
 
 data Adam t = Adam { alpha :: t

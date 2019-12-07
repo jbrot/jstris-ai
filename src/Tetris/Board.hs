@@ -1,21 +1,19 @@
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, DerivingVia, PatternSynonyms #-}
-module Tetris.Board where
+module Tetris.Board ( Square (..)
+                    , Board, emptyBoard, fromSquares, toSquares, getSquare, isEmpty, printBoard
+                    , canAddActiveBlock, validateAB, addActiveBlock
+                    , complete, clearLines, addGarbageLines, hurryUp
+                    ) where
 
-import Control.Monad.Random
 import Data.Bits
 import Data.Finite
-import Data.Finitary
-import Data.Finitary.Finiteness
-import Data.Finitary.PackInto (PackInto)
 import Data.Functor.Identity
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import Data.Vector.Unboxed.Sized (Vector)
 import qualified Data.Vector.Unboxed.Sized as U
 import qualified Data.Vector.Sized as V
 import Data.Word
-import GHC.Generics
 import Text.Printf
 
 import Tetris.Block
@@ -31,6 +29,12 @@ emptyRow = (maxBound `shiftL` 18) .|. 255
 fullRow :: Word32
 fullRow = maxBound
 
+rowMask :: Int -> Board -> Word32
+rowMask r (_, contents)
+  | r > 20 = fullRow
+  | r <  0 = emptyRow
+  | otherwise = contents `U.unsafeIndex` r
+
 emptyBoard :: Board
 emptyBoard = (U.replicate False, U.replicate emptyRow)
 
@@ -44,13 +48,6 @@ toSquares (hurry, contents) = V.generate genRow
   where genRow r = if hurry `U.index` r
                       then V.replicate HurryUp
                       else V.unfoldrN (\b -> (if (b .&. 1) == 0 then Empty else Garbage, b `shiftR` 1)) ((contents `U.index` r) `shiftR` 8)
-
-
-rowMask :: Int -> Board -> Word32
-rowMask r (_, contents)
-  | r > 20 = fullRow
-  | r <  0 = emptyRow
-  | otherwise = contents `U.unsafeIndex` r
 
 getSquare :: Pos -> Board -> Square
 getSquare (r,c) board
@@ -80,24 +77,6 @@ addActiveBlock (hurry, content) ab = (hurry, U.ifoldr upd content mask)
           upd i m vc = if i' < 0 || i' >= 20 then vc else U.unsafeUpd vc [(i', (vc `U.unsafeIndex` i') .|. m)]
             where i' = r + (fromInteger . getFinite $ i)
 
--- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
--- Will only return Nothing if the current position is invalid.
-dropPosition :: Board -> ActiveBlock -> Maybe ActiveBlock
-dropPosition board = fmap (\a@ActiveBlock{ pos = (r,c) } -> fromMaybe a . dropPosition board $ a{ pos = (r + 1, c) }) . validateAB board
-
-dropBlock :: Board -> ActiveBlock -> Board
-dropBlock board ab = addActiveBlock board . fromMaybe ab . dropPosition board $ ab
-
--- True: rotates the block right, False: rotates left.
--- This is actually reasonably complicated as it will resolve kicks.
--- Returns Nothing if no rotation position is valid.
-rotateBlock :: Board -> Bool -> ActiveBlock -> Maybe ActiveBlock
-rotateBlock board dir def@(ActiveBlock k (r,c) rot) = listToMaybe . catMaybes . fmap (validateAB board) $ candidates
-    where nrot = if dir then (rot + 1) `mod` 4 
-                        else (rot + 3) `mod` 4
-          kicks = if k == I then kickMap M.! (I, rot, dir)
-                            else kickMap M.! (J, rot, dir)
-          candidates = fmap (\(ro,co) -> ActiveBlock k (r + ro, c + co) nrot) kicks
 
 complete :: Board -> Finite 20 -> Bool
 complete (hurry,content) r = (content `U.index` r) + 1 == 0 && not (hurry `U.index` r)
@@ -124,35 +103,6 @@ hurryUp n = markHU . addGarbageLines n 32
     where markHU (h,c) = (h `U.unsafeUpd` [(x, True) | x <- [endI - 1 - n .. endI - 1]], c)
             where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 h
 
--- Board -> Combo -> Cleared -> LinesSent
--- Combo counts consecutive clears, so if cleared > 0, then combo >= 1.
-attackLines :: Board -> Int -> Int -> Int
-attackLines board combo cleared = cboLines + clearedLines
-    where cboLines = case (combo - 1) of
-                       -1 -> 0
-                       0  -> 0
-                       1  -> 0
-                       2  -> 1
-                       3  -> 1
-                       4  -> 1
-                       5  -> 2
-                       6  -> 2
-                       7  -> 3
-                       8  -> 3
-                       9  -> 4
-                       10 -> 4
-                       11 -> 4
-                       otherwise -> 5
-          mask = 1023 `shiftL` 8
-          clearedLines = if U.all (\r -> r .&. mask == 0) (snd board)
-                            then 10
-                            else case cleared of 
-                                    0 -> 0
-                                    1 -> 0
-                                    2 -> 1
-                                    3 -> 2
-                                    4 -> 4
-
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
     where printSquare :: Square -> IO ()
@@ -168,6 +118,8 @@ printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]
           sqChar Garbage = 'X'
           sqChar HurryUp = 'X'
 
+{- These are the default colors on JStris. Now that the board no longer records remnant type,
+    these no longer really have a use. I'm keeping them here, though, for posterity.
 colorMap :: Map Block (Int, Int, Int)
 colorMap = M.fromList [ (I, ( 15,155,215))
                       , (J, ( 33, 65,198))
@@ -177,6 +129,7 @@ colorMap = M.fromList [ (I, ( 15,155,215))
                       , (T, (175, 41,138))
                       , (Z, (215, 15, 55))
                       ]
+-}
 
 rotMaskMap :: Map (Block, Rot) (Vector 4 Word32)
 rotMaskMap = M.map posToMask rotMap
@@ -221,24 +174,3 @@ rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])
                     , ((Z, 2), [ (3,2), (3,1), (2,1), (2,0) ])
                     , ((Z, 3), [ (3,0), (2,0), (2,1), (1,1) ])
                     ]
-
--- True: right; False: left
-kickMap :: Map (Block, Rot, Bool) [Pos]
-kickMap = M.fromList [ ((I, 0, True),  [ (0,0), (-2,0), ( 1,0), (-2,-1), ( 1, 2) ])
-                     , ((I, 0, False), [ (0,0), (-1,0), ( 2,0), (-1, 2), ( 2,-1) ])
-                     , ((I, 1, True),  [ (0,0), (-1,0), ( 2,0), (-1, 2), ( 2,-1) ])
-                     , ((I, 1, False), [ (0,0), ( 2,0), (-1,0), ( 2, 1), (-1,-2) ])
-                     , ((I, 2, True),  [ (0,0), ( 2,0), (-1,0), ( 2, 1), (-1,-2) ])
-                     , ((I, 2, False), [ (0,0), ( 1,0), (-2,0), ( 1,-2), (-2, 1) ])
-                     , ((I, 3, True),  [ (0,0), ( 1,0), (-2,0), ( 1,-2), (-2, 1) ])
-                     , ((I, 3, False), [ (0,0), (-2,0), ( 1,0), (-2,-1), ( 1, 2) ])
-
-                     , ((J, 0, True),  [ (0,0), (-1,0), (-1, 1), (0,-2), (-1,-2) ])
-                     , ((J, 0, False), [ (0,0), ( 1,0), ( 1, 1), (0,-2), ( 1,-2) ])
-                     , ((J, 1, True),  [ (0,0), ( 1,0), ( 1,-1), (0, 2), ( 1, 2) ])
-                     , ((J, 1, False), [ (0,0), ( 1,0), ( 1,-1), (0, 2), ( 1, 2) ])
-                     , ((J, 2, True),  [ (0,0), ( 1,0), ( 1, 1), (0,-2), ( 1,-2) ])
-                     , ((J, 2, False), [ (0,0), (-1,0), (-1, 1), (0,-2), (-1,-2) ])
-                     , ((J, 3, True),  [ (0,0), (-1,0), (-1,-1), (0, 2), (-1, 2) ])
-                     , ((J, 3, False), [ (0,0), (-1,0), (-1,-1), (0, 2), (-1, 2) ])
-                     ]

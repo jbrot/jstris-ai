@@ -3,7 +3,6 @@ module Grenade.Exts.Gradient where
 
 import Data.Singletons.TypeLits
 import Grenade
-import Numeric.LinearAlgebra.Static
 
 instance (KnownNat i, KnownNat o) => Num (FullyConnected' i o) where
     (FullyConnected' a b) + (FullyConnected' a2 b2) = FullyConnected' (a + a2) (b + b2)
@@ -35,10 +34,10 @@ instance Num (Gradients '[]) where
     GNil * GNil = GNil
     abs GNil = GNil
     signum GNil = GNil
-    fromInteger n = GNil
+    fromInteger _ = GNil
     negate GNil = GNil
 instance Fractional (Gradients '[]) where
-    fromRational r = GNil
+    fromRational _ = GNil
     recip GNil = GNil
 instance Floating (Gradients '[]) where
     pi = GNil
@@ -85,10 +84,10 @@ instance Num () where
     () * () = ()
     abs () = ()
     signum () = ()
-    fromInteger n = ()
+    fromInteger _ = ()
     negate () = ()
 instance Fractional () where
-    fromRational r = ()
+    fromRational _ = ()
     recip () = ()
 instance Floating () where
     pi = ()

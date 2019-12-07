@@ -3,24 +3,22 @@ module TestMC (monteCarloStep) where
 
 import Control.Applicative
 import Control.Monad.Logic
-import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Writer.CPS
 import Control.Monad.Random
-import Data.List
 import qualified Data.Vector as V
-import Data.Maybe
 
-import Tetris
+import Tetris.Action
 import Tetris.Block
 import Tetris.Board
+import Tetris.State
 
 monteCarloStep :: (MonadIO m, MonadRandom m) => GameState -> m [Action]
 monteCarloStep state = do
-    options <- fmap V.fromList $ runComputation state (possible 1)
+    options <- fmap V.fromList $ runComputation state possible
     if V.null options
        then pure [ HardDrop ]
-       else fmap (snd . (V.!) options) (getRandomR (0, V.length options - 1))
+       else fmap ((<> [ HardDrop ]) . snd . (V.!) options) (getRandomR (0, V.length options - 1))
 
 newtype Computation m a = Computation { unComp :: StateT GameState (WriterT [Action] (LogicT m)) a}
     deriving (Functor, Applicative, Monad, Alternative, MonadPlus)
@@ -66,6 +64,5 @@ translations :: MonadRandom m => Computation m ()
 translations = pure() `mplus` go MoveLeft `mplus` go MoveRight
     where go a = act a >> (pure () `mplus` go a)
 
-possible :: MonadRandom m => Int -> Computation m ()
-possible 0 = pure ()
-possible n = rotations >> translations >> act HardDrop >> possible (n - 1)
+possible :: MonadRandom m => Computation m ()
+possible = rotations >> translations

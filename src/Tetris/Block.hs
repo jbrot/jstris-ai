@@ -1,12 +1,8 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Tetris.Block where
 
-import Data.Finitary
-import Data.Finitary.Finiteness
-import GHC.Generics
-
 data Block = I | J | L | O | S | T | Z
-    deriving (Eq, Show, Ord, Enum, Generic, Finitary)
+    deriving (Eq, Show, Ord, Enum)
 
 type Row = Int
 type Col = Int

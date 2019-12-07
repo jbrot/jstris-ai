@@ -9,8 +9,8 @@ import AI
 import CLI
 import Online
 import Simulator
-import Tetris
 import Tetris.Board
+import Tetris.State
 import Train
 
 main :: IO ()

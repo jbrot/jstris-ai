@@ -8,7 +8,7 @@ import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Test.WebDriver.Common.Keys as K
 
-import Tetris
+import Tetris.Action
 import Tetris.Block
 import Tetris.Board
 
