@@ -10,9 +10,11 @@ import Data.Singletons
 import Data.Singletons.Prelude.Bool
 import Data.Singletons.Prelude.Num
 import Data.Singletons.TypeLits
+import qualified Data.Vector as VV
 import qualified Data.Vector.Storable as V
+import qualified Data.Vector.Sized as SV
 import Grenade
-import Numeric.LinearAlgebra.Static
+import Numeric.LinearAlgebra.Static hiding ((<>))
 
 import Tetris.Action
 import Tetris.Block
@@ -63,7 +65,7 @@ encodeA :: ActiveBlock -> R 10
 encodeA a = encodeV (kind a) & (realToFrac . fst . pos $ a) & (realToFrac . snd . pos $ a) & (realToFrac . rot $ a)
 
 encodeB :: Board -> R 200
-encodeB _ = konst 0 -- fromJust . create . V.convert . U.map (\x -> if (x == pack Empty) then 0 else 1)
+encodeB = fromJust . create . V.convert . VV.map (\x -> if (x == Empty) then 0 else 1) . SV.foldr1 (VV.++) . SV.map SV.fromSized . toSquares
 
 input :: Monad m => GameState -> StateT AIState m (R 247)
 input gs = fmap (\ais -> b # q # a & (realToFrac . scombo $ ais) & (realToFrac . sum . garbage $ gs)) get

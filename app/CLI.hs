@@ -17,7 +17,7 @@ parseAISpec (Left f) = (either fail pure . parseAI) =<< B.readFile f
 parseAISpec (Right True) = (either fail pure . parseAI ) =<< B.getContents
 parseAISpec (Right False) = defaultState
 
-data Command = Run AISpec String | Simulate AISpec Bool | Train (Adam (Gradients NL)) Bool
+data Command = Run AISpec String | Simulate AISpec Bool | Train (Adam (Gradients NL)) AISpec Bool (Maybe FilePath)
 
 aiFileOpt :: Parser FilePath 
 aiFileOpt = strOption $ opts
@@ -85,6 +85,13 @@ adamP :: Parser (Adam (Gradients NL))
 adamP = Adam <$> fmap rtf alphaOpt <*> fmap rtf beta1Opt <*> fmap rtf beta2Opt <*> fmap rtf epsOpt <*> pure (rtf 0) <*> pure (rtf 0) <*> pure 0
     where rtf = realToFrac
 
+aiOutFileOpt :: Parser (Maybe FilePath)
+aiOutFileOpt = optional . strOption $ opts
+    where opts = short 'o'
+              <> long "out"
+              <> help "Which file to save the trained AI to"
+              <> metavar "FILE"
+
 parserInfo :: ParserInfo Command
 parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an AI that can play jstris, an online, multiplayer version of Tetris found at https://jstris.jezevec10.com/.")
     where parser = hsubparser . mconcat . fmap command' $
@@ -94,7 +101,7 @@ parserInfo = info (helper <*> (parser <|> runP)) (progDesc "jstris-ai manages an
             ]
           runP   = Run <$> aiSpecOpt <*> urlOpt
           simP   = Simulate <$> aiSpecOpt <*> verboseFlag
-          trainP = Train <$> adamP <*> verboseFlag
+          trainP = Train <$> adamP <*> aiSpecOpt <*> verboseFlag <*> aiOutFileOpt
           command' (n,d,p) = command n . info p . progDesc $ d
 
 

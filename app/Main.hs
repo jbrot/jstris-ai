@@ -19,7 +19,7 @@ main = do
     case cmd of
       Run a u -> parseAISpec a >>= \a' -> runOnline a' u
       Simulate a v -> parseAISpec a >>= \a' -> runSimulation a' v
-      Train a v -> runTraining a v
+      Train ad a v o -> parseAISpec a >>= \a' -> runTraining ad a' v o
 
 -----------------------
 -----------------------
