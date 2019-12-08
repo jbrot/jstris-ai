@@ -31,7 +31,7 @@ fullRow = maxBound
 
 rowMask :: Int -> Board -> Word32
 rowMask r (_, contents)
-  | r > 20 = fullRow
+  | r >= 20 = fullRow
   | r <  0 = emptyRow
   | otherwise = contents `U.unsafeIndex` r
 
