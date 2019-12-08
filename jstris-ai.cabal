@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1de69aed04e2fc995456b2e923f4dfe8a259a086e6cee9f18d5be91c7b65321d
+-- hash: 4b043bf9c39481460b914b21e9bb2f33b7861ebb80b848614a69a0333fb54900
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       Grenade.Exts.Adam
       Grenade.Exts.Gradient
       Grenade.Exts.Layer
+      MCTS
       Tetris.Action
       Tetris.Block
       Tetris.Board

@@ -15,7 +15,7 @@ data GameState = GameState { board :: Board
                            , combo :: Int
                            , queue :: [Block]
                            , garbage :: [Int]
-                           }
+                           } deriving (Eq, Ord, Show)
 
 newtype TransitionState = TransitionState (Bool, GameState)
 

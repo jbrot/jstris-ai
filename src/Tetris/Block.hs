@@ -13,7 +13,7 @@ type Rot = Int
 data ActiveBlock = ActiveBlock { kind :: Block
                                , pos :: Pos
                                , rot :: Rot
-                               }
+                               } deriving (Eq, Ord, Show)
 
 startingPosition :: Block -> ActiveBlock
 startingPosition b = ActiveBlock b (height b, 3) 0
