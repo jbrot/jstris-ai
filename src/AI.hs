@@ -25,7 +25,10 @@ runAI state = do
     options <- runComputation state (possible 2 >> score')
     if null options
        then pure [ HardDrop ]
-       else pure . (<> [ HardDrop ]) . takeWhile (/= HardDrop) . snd . maximumBy (\a b -> compare (fst a) (fst b)) $ options
+       else do
+           let (score, acts) = maximumBy (\a b -> compare (fst a) (fst b)) $ options
+           liftIO $ print score
+           pure . (<> [ HardDrop ]) . takeWhile (/= HardDrop) $ acts
 
 newtype Computation m a = Computation { unComp :: StateT GameState (WriterT [Action] (LogicT m)) a}
     deriving (Functor, Applicative, Monad, Alternative, MonadPlus)
