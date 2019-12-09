@@ -105,13 +105,13 @@ rolloutTransition params _ (Just node) = do
     pure (Just node')
 rolloutTransition params gs Nothing = do
     -- We're at a leaf, create a new node.
-    rwd <- lift (simulate params gs)
+    let rwd = stateToReward params gs
     tell (Sum rwd)
-    pure . Just $ StateNode (NodeInfo rwd (stateToReward params gs) 1) gs (moves gs)
+    pure . Just $ StateNode (NodeInfo 0 0 0) gs (moves gs)
 
 -- Play out uniformly randomly from this state
 simulate :: MonadRandom m => MCTS -> GameState -> m Reward
-simulate params = go 20
+simulate params = go 10
   where go :: MonadRandom m => Int -> GameState -> m Reward
         go 0  _ = pure 0
         go n gs = do

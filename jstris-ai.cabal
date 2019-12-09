@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b043bf9c39481460b914b21e9bb2f33b7861ebb80b848614a69a0333fb54900
+-- hash: 98d8789f084a04c10bdbb9f8b5ae4a481fe357502bbe30ee0e1f75c751b80b4c
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -49,6 +49,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , cereal
+    , clock
     , containers
     , finitary
     , finitary-derive
@@ -88,6 +89,7 @@ executable jstris-ai-exe
     , base >=4.7 && <5
     , bytestring
     , cereal
+    , clock
     , containers
     , finitary
     , finitary-derive
@@ -126,6 +128,7 @@ benchmark jstris-ai-bench
     , base >=4.7 && <5
     , bytestring
     , cereal
+    , clock
     , containers
     , criterion
     , finitary

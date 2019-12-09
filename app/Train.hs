@@ -30,7 +30,7 @@ resetSim :: TState -> IO TState
 resetSim ts = fmap (\g -> ts{ss = startingState g, stp = 0, kp = 0}) getStdGen
 
 updateNet :: TState -> TState
-updateNet st = st{rollout = [], adam = ad', as = AIState nn' 0}
+updateNet st = st{rollout = [], adam = ad', as = AIState Nothing}
   where gamma = 0.95
         (_,gtrl) = foldl (\(v,ls) (r,g) -> let nv = gamma * v + r in (nv, (nv,g):ls)) (0, []) (rollout st)
         average :: Fractional n => [n] -> n

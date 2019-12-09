@@ -15,86 +15,85 @@ import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Sized as SV
 import Grenade
 import Numeric.LinearAlgebra.Static hiding ((<>))
+import System.Clock
 
 import Tetris.Action
 import Tetris.Block
 import Tetris.Board
 import Tetris.State
+import MCTS
 
 -- Input: Board (200) + Queue (7 * 5 = 35) + Active (7) + Active Position (2) + Active Rotation (1) + Combo (1) + Incoming (1) = 247
 -- Output: Left | Right | Rotate Left | Rotate Right | Drop (5)
 type NL = '[ FullyConnected 247 1024, Relu, FullyConnected 1024 5, Softmax ]
 type NNet = Network NL '[ 'D1 247, 'D1 1024, 'D1 1024, 'D1 5, 'D1 5 ]
 
-data AIState = AIState  { nn :: NNet
-                        , scombo :: Int 
+data AIState = AIState  { tree :: Maybe (MCTree TransitionState)
                         }
-  deriving Show
+
+params :: MCTS
+params = MCTS { linesToReward = (/ 10) . fromInteger . toInteger
+              , stateToReward = (+ 1) . (/ 100) . realToFrac . score . board
+              , lossReward = -1 / 0 
+              , gamma = 1
+              , cp = 1 / sqrt 2
+              }
 
 defaultState :: IO AIState
-defaultState = AIState <$> randomNetwork <*> pure 0
+defaultState = pure (AIState Nothing)
+
+nn :: AIState -> NNet
+nn = undefined
 
 parseAI :: ByteString -> Either String AIState
-parseAI s = AIState <$> decode s <*> pure 0
+parseAI s = undefined
 
 saveAI :: AIState -> ByteString
-saveAI = encode . nn
-
-sample :: (MonadRandom m, KnownNat n, (1 <=? n) ~ 'True) => R n -> m Int
-sample v = fmap (go v) . getRandomR $ (0,1)
-    where go :: forall n1. (KnownNat n1, (1 <=? n1) ~ 'True) => R n1 -> Double -> Int
-          go vec v = if v < h
-                        then 0
-                        else case (SNat :: SNat n1) %- (SNat :: SNat 1) of
-                               SNat -> case (SNat :: SNat 1) %<=? singByProxy t of
-                                         STrue -> 1 + go t (v - h)
-                                         SFalse -> 0
-              where (h,t) = headTail vec
-
-seedVector :: (KnownNat n, (1 <=? n) ~ 'True) => MonadRandom m => R n -> m (Int, R n)
-seedVector v = fmap (\t -> (t, fromJust . create . flip V.unsafeUpd [(t, 1 / ((unwrap v) V.! t))] $ V.replicate (size v) 0)) (sample v)
-
-apply :: (MonadRandom m, MonadIO m) => NNet -> R 247 -> m (Int, Gradients NL)
-apply nn v = fmap (fmap (fst . runGradient nn tape . S1D)) (seedVector o)
-    where (tape, S1D o) = runNetwork nn (S1D v)
-
-encodeV :: Block -> R 7
-encodeV b = fromJust . create . V.unsafeUpd (V.replicate 7 0) $ [(fromEnum b, 1)]
-
-encodeA :: ActiveBlock -> R 10
-encodeA a = encodeV (kind a) & (realToFrac . fst . pos $ a) & (realToFrac . snd . pos $ a) & (realToFrac . rot $ a)
-
-encodeB :: Board -> R 200
-encodeB = fromJust . create . V.convert . VV.map (\x -> if (x == Empty) then 0 else 1) . SV.foldr1 (VV.++) . SV.map SV.fromSized . toSquares
-
-input :: Monad m => GameState -> StateT AIState m (R 247)
-input gs = fmap (\ais -> b # q # a & (realToFrac . scombo $ ais) & (realToFrac . sum . garbage $ gs)) get
-    where b = encodeB . board $ gs
-          q1:q2:q3:q4:q5:[] = queue gs
-          q = encodeV q1 # encodeV q2 # encodeV q3 # encodeV q4 # encodeV q5
-          a = encodeA . active $ gs
-
-processDrop :: GameState -> AIState -> AIState
-processDrop gs s = if lines > 0 then s{scombo = 1 + scombo s} else s{scombo = 0}
-  where lines = fst . clearLines' . addActive . moveActive' HardDrop $ gs
+saveAI = undefined
 
 stepAI :: (MonadRandom m, MonadIO m) => GameState -> StateT AIState m (Action, Gradients NL)
-stepAI state = do
-    (anum, grad) <- join $ liftM2 apply (fmap nn get) (input state)
-    let action = case anum of 
-                    0 -> MoveLeft
-                    1 -> MoveRight
-                    2 -> RotateLeft
-                    3 -> RotateRight
-                    _ -> HardDrop
-    when (action == HardDrop) $ modify (processDrop state)
-    pure  (action, grad)
+stepAI state = undefined
+
+iterateM :: Monad m => Int -> (a -> m a) -> a -> m a
+iterateM 0 f = f
+iterateM n f = f >=> iterateM (n - 1) f
+
+iterateUntil :: MonadIO m => TimeSpec -> (a -> m a) -> a -> m a
+iterateUntil t f a = do
+    a' <- iterateM 100 f a
+    now <- liftIO $ getTime Monotonic
+    if now > t
+       then pure a'
+       else iterateUntil t f a'
 
 runAI :: (MonadRandom m, MonadIO m) => Int -> GameState -> StateT AIState m [(Action, Maybe (Gradients NL))]
-runAI 0 s = modify (processDrop s) >> pure [(HardDrop, Nothing)]
-runAI n s = do
-    (a, g) <- stepAI s
-    let s' = moveActive' a s
-    case a of
-      HardDrop -> pure [(a, Just g)]
-      _ -> fmap ((:) (a, Just g)) (runAI (n - 1) s')
+runAI _ gs = do
+    oldT <- fmap tree get
+    time <- liftIO $ getTime Monotonic
+    newT <- iterateUntil (time + (TimeSpec 0 $ 100 * 1000 * 1000)) (fmap snd . rollout params) (newRootNode oldT gs)
+    (choice, leftover) <- decide newT
+    put (AIState leftover)
+    pure $ fmap (\a -> (a, Nothing)) choice
+
+aggregateHeight :: Board -> Int
+aggregateHeight board = sum (height board <$> [0..9])
+
+height :: Board -> Col -> Int
+height board c = (20 -) . head . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
+
+completeLines :: Board -> Int
+completeLines board = length . filter (complete board) $ [0..19]
+
+holes :: Board -> Int
+holes board = sum (colHoles <$> [0..9])
+    where colHoles :: Col -> Int
+          colHoles c = length . filter (\r -> r > (20 - height board c) && getSquare (r,c) board == Empty) $ [0..19]
+
+bumpiness :: Board -> Int
+bumpiness board = sum . fmap (\c -> abs (height board c - height board (c + 1))) $ [0..8]
+
+-- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
+score :: Board -> Float
+score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.35663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
+--score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.65663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
+  where itf = fromInteger . toInteger
