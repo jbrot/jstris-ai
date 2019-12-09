@@ -1,5 +1,8 @@
 {-# LANGUAGE GADTs, GeneralizedNewtypeDeriving  #-}
-module MCTS (Choice, NodeInfo (..), MCTree (..), rollout, rootNode, decide, newRootNode) where
+module MCTS ( Choice, Reward
+            , MCTS (..), NodeInfo (..), MCTree (..)
+            , rollout, rootNode, decide, newRootNode
+            ) where
 
 
 import Control.Applicative
@@ -21,11 +24,13 @@ import Tetris.State
 type Choice = [Action]
 type Reward = Double
 
-linesToReward :: AttackLines -> Reward
-linesToReward = fromInteger . toInteger
-
-stateToReward :: GameState -> Reward
-stateToReward _ = 0
+-- Parameters for configuring the MCTS search.
+data MCTS = MCTS { linesToReward :: AttackLines -> Reward
+                 , stateToReward :: GameState -> Reward
+                 , lossReward :: Reward
+                 , gamma :: Double
+                 , cp :: Double -- Exploration/exploitation factor (usually 1 / sqrt(2))
+                 }
 
 data NodeInfo = NodeInfo { q :: Reward -- Total child reward from rollouts
                          , r :: Reward -- Reward at this node
@@ -38,11 +43,11 @@ data MCTree a where
 
 -- Start a new MCTree
 rootNode :: GameState -> MCTree GameState
-rootNode gs = StateNode (NodeInfo 0 (stateToReward gs) 0) gs (moves gs)
+rootNode gs = StateNode (NodeInfo 0 0 0) gs (moves gs)
 
 -- Pick the best option currently in the MCTree, and get the portion of the tree below it.
 decide :: MonadRandom m => MCTree GameState -> m (Choice, Maybe (MCTree TransitionState))
-decide tree@(StateNode _ _ opts) = fmap (opts V.!) (bestMoveIndex choiceScore tree)
+decide (StateNode _ _ opts) = fmap (opts V.!) (bestMoveIndex (choiceScore . snd) opts)
 
 -- Given a portion of the tree from `decide`, and the resulting new GameState after taking
 -- the provided action, reduce the tree again to the appropriate branch, which can then
@@ -54,71 +59,69 @@ newRootNode (Just (TransitionNode _ _ map)) gs = M.findWithDefault (rootNode gs)
 -- Perform one step of UCT Monte Carlo Tree Search.
 -- That is, we keep picking the best move available until we reach an unexplored node.
 -- Then, we add that node to the tree and do a uniform roll out from it to give it a default value.
-rollout :: MonadRandom m => MCTree GameState -> m (Reward, MCTree GameState)
-rollout node@(StateNode (NodeInfo q r n) gs opts) = do
-    index <- bestMoveIndex uctScore node
-    (rwd, entry) <- descendState gs (opts V.! index)
-    -- TODO, don't hard code gamma = 0.8
-    pure $ (r + 0.8 * rwd, StateNode (NodeInfo (q + rwd) r (n + 1)) gs (opts V.// [(index, entry)]))
+rollout :: MonadRandom m => MCTS -> MCTree GameState -> m (Reward, MCTree GameState)
+rollout params (StateNode (NodeInfo q r n) gs opts) = do
+    index <- bestMoveIndex (uctScore params n . snd) opts
+    (rwd, entry) <- descendState params gs (opts V.! index)
+    pure $ (r + (gamma params) * rwd, StateNode (NodeInfo (q + rwd) r (n + 1)) gs (opts V.// [(index, entry)]))
 
-bestMoveIndex :: MonadRandom m => (Double -> Maybe (MCTree TransitionState) -> Double) -> MCTree GameState -> m Int
-bestMoveIndex score (StateNode (NodeInfo _ _ total) _ opts) = fmap (bestIndices V.!) $ getRandomR (0, length bestIndices - 1)
-    where scores = fmap (score total . snd) opts
+bestMoveIndex :: MonadRandom m => (a -> Double) -> Vector a -> m Int
+bestMoveIndex score opts = fmap (bestIndices V.!) $ getRandomR (0, length bestIndices - 1)
+    where scores = fmap score opts
           best = V.maximum scores
           bestIndices = V.findIndices (== best) scores
 
 -- Parent Total -> Child -> Score
-uctScore :: Double -> Maybe (MCTree TransitionState) -> Double
-uctScore total (Just (TransitionNode info _ _)) = r info + (q info) / (n info) + 1 * sqrt (2 * (log total) / (n info))
-uctScore _ _ = 1 / 0 -- Infinity
+uctScore :: MCTS -> Double -> Maybe (MCTree TransitionState) -> Double
+uctScore params total (Just (TransitionNode info _ _)) = r info + (q info) / (n info) + (cp params) * sqrt ((log total) / (n info))
+uctScore _ _ _ = 1 / 0 -- Infinity
 
-choiceScore :: Double -> Maybe (MCTree TransitionState) -> Double
-choiceScore _ (Just (TransitionNode info _ _)) = r info + (q info) / (n info)
-choiceScore _ _ = -1 / 0
+choiceScore :: Maybe (MCTree TransitionState) -> Double
+choiceScore (Just (TransitionNode info _ _)) = r info + (q info) / (n info)
+choiceScore _ = -1 / 0
 
-descendState :: MonadRandom m => GameState -> (Choice, Maybe (MCTree TransitionState)) -> m (Reward, (Choice, Maybe (MCTree TransitionState)))
-descendState st (c, mts) = fmap (fmap $ \s -> (c, Just s)) . descendTransition . fromMaybe (applyActions c st 0) $ mts
+descendState :: MonadRandom m => MCTS -> GameState -> (Choice, Maybe (MCTree TransitionState)) -> m (Reward, (Choice, Maybe (MCTree TransitionState)))
+descendState params st (c, mts) = fmap (fmap $ \s -> (c, Just s)) . descendTransition params . fromMaybe (applyActions params c st 0) $ mts
 
-applyActions :: [Action] -> GameState -> AttackLines -> MCTree TransitionState
-applyActions [] _ _ = undefined
-applyActions (a:as) gs c = case applyAction a gs of
-                             (c2, Right gs2) -> applyActions as gs2 (c + c2)
-                             (c2, Left ts)   -> TransitionNode (NodeInfo 0 (linesToReward $ c + c2) 0) ts M.empty
+applyActions :: MCTS -> [Action] -> GameState -> AttackLines -> MCTree TransitionState
+applyActions _ [] _ _ = undefined
+applyActions params (a:as) gs c = case applyAction a gs of
+                                    (c2, Right gs2) -> applyActions params as gs2 (c + c2)
+                                    (c2, Left ts)   -> TransitionNode (NodeInfo 0 (linesToReward params $ c + c2) 0) ts M.empty
 
-descendTransition :: MonadRandom m => MCTree TransitionState -> m (Reward, MCTree TransitionState)
-descendTransition (TransitionNode info ts children) = monteCarloTransition ts >>= \mgs ->
+descendTransition :: MonadRandom m => MCTS -> MCTree TransitionState -> m (Reward, MCTree TransitionState)
+descendTransition params (TransitionNode info ts children) = monteCarloTransition ts >>= \mgs ->
     case mgs of
-      Nothing -> pure (0, TransitionNode info{n = 1 + n info} ts children) -- We lose
+      Nothing -> pure (lossReward params, TransitionNode info{n = 1 + n info} ts children) -- We lose
       Just gs -> do
-          (children', Sum result) <- runWriterT $ M.alterF (rolloutTransition gs) gs children
+          (children', Sum result) <- runWriterT $ M.alterF (rolloutTransition params gs) gs children
           pure (r info + result, TransitionNode info{q = result + q info, n = 1 + n info} ts children')
 
-rolloutTransition :: MonadRandom m => GameState -> Maybe (MCTree GameState) -> WriterT (Sum Reward) m (Maybe (MCTree GameState))
-rolloutTransition _ (Just node) = do
+rolloutTransition :: MonadRandom m => MCTS -> GameState -> Maybe (MCTree GameState) -> WriterT (Sum Reward) m (Maybe (MCTree GameState))
+rolloutTransition params _ (Just node) = do
     -- We're not at a leaf, so we keep descending
-    (rwd, node') <- lift (rollout node)
+    (rwd, node') <- lift (rollout params node)
     tell (Sum rwd)
     pure (Just node')
-rolloutTransition gs Nothing = do
+rolloutTransition params gs Nothing = do
     -- We're at a leaf, create a new node.
-    rwd <- lift (simulate gs)
+    rwd <- lift (simulate params gs)
     tell (Sum rwd)
-    pure . Just $ StateNode (NodeInfo rwd (stateToReward gs) 1) gs (moves gs)
+    pure . Just $ StateNode (NodeInfo rwd (stateToReward params gs) 1) gs (moves gs)
 
 -- Play out uniformly randomly from this state
-simulate :: MonadRandom m => GameState -> m Reward
-simulate = go 20
+simulate :: MonadRandom m => MCTS -> GameState -> m Reward
+simulate params = go 20
   where go :: MonadRandom m => Int -> GameState -> m Reward
         go 0  _ = pure 0
         go n gs = do
             let poss = moves gs
             choice <- fmap (fst . (poss V.!)) $ getRandomR (0, length poss - 1)
-            let (TransitionNode (NodeInfo _ rwd _) ts _) = applyActions choice gs 0
+            let (TransitionNode (NodeInfo _ rwd _) ts _) = applyActions params choice gs 0
             mgs <- monteCarloTransition ts
             case mgs of
-              Nothing -> pure rwd
-              -- TODO don't hardcode gamma = 0.8
-              Just gs' -> fmap (\r -> rwd + stateToReward gs' + 0.8 * r) (go (n - 1) gs')
+              Nothing -> pure (rwd + lossReward params)
+              Just gs' -> fmap (\r -> rwd + stateToReward params gs' + (gamma params) * r) (go (n - 1) gs')
 
 
 moves :: GameState -> Vector (Choice, Maybe (MCTree TransitionState))
