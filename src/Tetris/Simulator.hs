@@ -108,7 +108,7 @@ transitionWithBlockHU (TransitionState (grb, gs0)) _ b = do
 -- Transition with randomly dealt garbage and next piece.
 -- Returns Nothing if the game is over.
 monteCarloTransition :: MonadRandom m => TransitionState -> m (Maybe GameState)
-monteCarloTransition st = transitionWithBlockHU st 0 L -- =<< fmap toEnum (getRandomR (0,6))
+monteCarloTransition st = transitionWithBlockHU st 0 =<< fmap toEnum (getRandomR (0,6))
 
 data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]

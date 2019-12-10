@@ -1,5 +1,9 @@
-{-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, DerivingVia, PatternSynonyms #-}
-module Tetris.State where
+{-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, DerivingVia, PatternSynonyms, RankNTypes, ScopedTypeVariables #-}
+module Tetris.State ( GameState (..)
+                    , TransitionState (..)
+                    , moveActive, moveActive', addActive, clearLines'
+                    , addGarbage, reduceGarbage
+                    ) where
 
 import Control.Monad.Random
 import Data.Maybe
@@ -15,7 +19,20 @@ data GameState = GameState { board :: Board
                            , combo :: Int
                            , queue :: [Block]
                            , garbage :: [Int]
-                           } deriving (Eq, Ord, Show)
+                           } deriving (Show)
+
+data GSRecord = GSR { equal :: GameState -> GameState -> Bool
+                    , comp  :: GameState -> GameState -> Ordering }
+wrap :: (Eq a, Ord a) => (GameState -> a) -> GSRecord
+wrap f = GSR (\g1 g2 -> f g1 == f g2) (\g1 g2 -> compare (f g1) (f g2))
+compareList = [wrap board, wrap active, wrap held, wrap canHold, wrap combo, wrap garbage]
+
+instance Eq GameState where
+    g1 == g2 = and . fmap (\r -> equal r g1 g2) $ compareList
+instance Ord GameState where
+    compare g1 g2 = foldr cmp EQ compareList
+        where cmp :: GSRecord -> Ordering -> Ordering
+              cmp f b = let c = comp f g1 g2 in if c == EQ then b else c
 
 newtype TransitionState = TransitionState (Bool, GameState)
 

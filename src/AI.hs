@@ -4,17 +4,7 @@ module AI (NL, NNet, AIState (AIState), nn, defaultState, parseAI, saveAI, stepA
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
 import Data.ByteString (ByteString)
-import Data.Maybe (fromJust)
-import Data.Serialize (encode, decode)
-import Data.Singletons
-import Data.Singletons.Prelude.Bool
-import Data.Singletons.Prelude.Num
-import Data.Singletons.TypeLits
-import qualified Data.Vector as VV
-import qualified Data.Vector.Storable as V
-import qualified Data.Vector.Sized as SV
 import Grenade
-import Numeric.LinearAlgebra.Static hiding ((<>))
 import System.Clock
 
 import Tetris.Action
@@ -32,9 +22,10 @@ data AIState = AIState  { tree :: Maybe (MCTree TransitionState)
                         }
 
 params :: MCTS
-params = MCTS { linesToReward = (/ 10) . fromInteger . toInteger
-              , stateToReward = (+ 1) . (/ 100) . realToFrac . score . board
-              , lossReward = -1 / 0 
+params = MCTS { linesToReward = fromInteger . toInteger
+              , stateToReward = const 0
+              , simulate = pure . (+ 1) . (/ 100) . realToFrac . score . board
+              , lossReward = -10 
               , gamma = 1
               , cp = 1 / sqrt 2
               }
@@ -46,13 +37,13 @@ nn :: AIState -> NNet
 nn = undefined
 
 parseAI :: ByteString -> Either String AIState
-parseAI s = undefined
+parseAI = undefined
 
 saveAI :: AIState -> ByteString
 saveAI = undefined
 
 stepAI :: (MonadRandom m, MonadIO m) => GameState -> StateT AIState m (Action, Gradients NL)
-stepAI state = undefined
+stepAI = undefined
 
 iterateM :: Monad m => Int -> (a -> m a) -> a -> m a
 iterateM 0 f = f
@@ -95,5 +86,4 @@ bumpiness board = sum . fmap (\c -> abs (height board c - height board (c + 1)))
 -- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
 score :: Board -> Float
 score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.35663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
---score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.65663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
   where itf = fromInteger . toInteger
