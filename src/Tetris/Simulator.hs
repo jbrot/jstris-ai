@@ -1,4 +1,4 @@
-module Tetris.Simulator ( AttackLines, applyAction, monteCarloTransition
+module Tetris.Simulator ( AttackLines, applyAction, monteCarloTransition, deterministicTransition
                         , SimulatorState(..), startingState, advance
                         ) where
 
@@ -109,6 +109,10 @@ transitionWithBlockHU (TransitionState (grb, gs0)) _ b = do
 -- Returns Nothing if the game is over.
 monteCarloTransition :: MonadRandom m => TransitionState -> m (Maybe GameState)
 monteCarloTransition st = transitionWithBlockHU st 0 =<< fmap toEnum (getRandomR (0,6))
+
+-- Transition without looking at garbage or queueing a new block. Use with caution
+deterministicTransition :: TransitionState -> Maybe GameState
+deterministicTransition (TransitionState (_,gs)) = guard (canAddActiveBlock (board gs) (active gs)) >> pure gs
 
 data SimulatorState = SimulatorState { gs :: GameState
                                      , squeue :: [Block]

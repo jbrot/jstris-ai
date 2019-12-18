@@ -2,6 +2,7 @@
 module MCTS ( Choice, Reward
             , MCTS (..), NodeInfo (..), MCTree (..)
             , rollout, rootNode, decide, newRootNode
+            , simulateU, simulateA
             ) where
 
 
@@ -10,6 +11,7 @@ import Control.Monad.Logic
 import Control.Monad.Random
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Writer.CPS
+import Data.List (maximumBy)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
@@ -18,6 +20,8 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Tetris.Action
+import Tetris.Block
+import Tetris.Board
 import Tetris.Simulator
 import Tetris.State
 
@@ -114,22 +118,29 @@ rolloutTransition params gs Nothing = do
     tell . Sum  $ stateToReward params gs + (gamma params) * rwd
     pure . Just $ StateNode (NodeInfo rwd (stateToReward params gs) 1 rwd) gs (moves gs)
 
-{-
--- Play out uniformly randomly from this state
-simulate :: MonadRandom m => MCTS -> GameState -> m Reward
-simulate params = go 10
-  where go :: MonadRandom m => Int -> GameState -> m Reward
-        go 0  _ = pure 0
-        go n gs = do
-            let poss = moves gs
-            choice <- fmap (fst . (poss V.!)) $ getRandomR (0, length poss - 1)
-            let (TransitionNode (NodeInfo _ rwd _) ts _) = applyActions params choice gs 0
-            mgs <- monteCarloTransition ts
-            case mgs of
-              Nothing -> pure (rwd + lossReward params)
-              Just gs' -> fmap (\r -> rwd + stateToReward params gs' + (gamma params) * r) (go (n - 1) gs')
--}
+-- Play out n moves uniformly randomly from this state
+simulateU :: (MonadRandom m) => MCTS -> Int -> GameState -> m Reward
+simulateU _ 0 _ = pure 0
+simulateU params n gs = do
+    let poss = moves gs
+    choice <- fmap (fst . (poss V.!)) $ getRandomR (0, length poss - 1)
+    let (TransitionNode (NodeInfo _ rwd _ _) ts _) = applyActions params choice gs 0
+    mgs <- monteCarloTransition ts
+    case mgs of
+        Nothing -> pure (rwd + lossReward params)
+        Just gs' -> fmap (\r -> rwd + stateToReward params gs' + (gamma params) * r) (simulateU params (n - 1) gs')
 
+-- Play out according to the old AI.
+simulateA :: (MonadRandom m) => MCTS -> Int -> GameState -> m Reward
+simulateA _ 0 _ = pure 0
+simulateA params n gs = do
+    let poss = runComputation gs (possible >> act HardDrop >> score')
+        (_, choice) = maximumBy (\(s1,_) (s2,_) -> compare s1 s2) poss
+    let (TransitionNode (NodeInfo _ rwd _ _) ts _) = applyActions params choice gs 0
+    mgs <- monteCarloTransition ts
+    case mgs of
+        Nothing -> pure (rwd + lossReward params)
+        Just gs' -> fmap (\r -> rwd + stateToReward params gs' + (gamma params) * r) (simulateA params (n - 1) gs')
 
 moves :: GameState -> Vector (Choice, Maybe (MCTree TransitionState))
 moves = V.fromList . fmap (\(_,c) -> (c <> [HardDrop], Nothing)) . flip runComputation possible
@@ -150,12 +161,22 @@ tellAction = Computation . lift . tell . (:[])
 liftMaybe :: MonadPlus m => Maybe a -> m a
 liftMaybe = maybe mzero pure
 
-act :: Action -> Computation ()
+act :: Action -> Computation AttackLines
+act HardDrop = do
+    state <- getState
+    let (lines, res) = applyAction HardDrop state
+    state' <- case res of
+                Left trans -> liftMaybe . deterministicTransition $ trans
+                Right _ -> undefined
+    tellAction HardDrop
+    putState state'
+    pure lines
 act a = do
     state <- getState
     state' <- liftMaybe . moveActive a $ state
     tellAction a
     putState state'
+    pure 0
 
 rotations :: Computation ()
 rotations = go 3
@@ -168,3 +189,28 @@ translations = pure() `mplus` go MoveLeft `mplus` go MoveRight
 
 possible :: Computation ()
 possible = rotations >> translations
+
+aggregateHeight :: Board -> Int
+aggregateHeight board = sum (height board <$> [0..9])
+
+height :: Board -> Col -> Int
+height board c = (20 -) . head . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
+
+completeLines :: Board -> Int
+completeLines board = length . filter (complete board) $ [0..19]
+
+holes :: Board -> Int
+holes board = sum (colHoles <$> [0..9])
+    where colHoles :: Col -> Int
+          colHoles c = length . filter (\r -> r > (20 - height board c) && getSquare (r,c) board == Empty) $ [0..19]
+
+bumpiness :: Board -> Int
+bumpiness board = sum . fmap (\c -> abs (height board c - height board (c + 1))) $ [0..8]
+
+-- See https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
+score :: Board -> Float
+score board = (-0.510066 * itf (aggregateHeight board)) + (0.760666 * itf (completeLines board)) + (-0.35663 * itf (holes board)) + (-0.184483 * itf (bumpiness board))
+  where itf = fromInteger . toInteger
+
+score' :: Computation Float
+score' = fmap (score . board) getState 

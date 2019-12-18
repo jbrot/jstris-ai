@@ -2,32 +2,36 @@ import Control.Monad.IO.Class
 import Control.Monad.Random
 import Criterion.Main
 
-import TestMC
+import MCTS
 import Tetris.Action
-import Simulator
+import Tetris.Simulator
 
 main = defaultMain [
-       bgroup "strip" [ bench "5 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 5) =<< getStdGen)
-                      , bench "10 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 10) =<< getStdGen)
-                      , bench "20 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 20) =<< getStdGen)
-                      ]
+          bgroup "strip" [ bench "5 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 5) =<< getStdGen)
+                         , bench "10 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 10) =<< getStdGen)
+                         , bench "20 step sim"   $ nfIO ((\g -> fmap fst $ runSimulation g 20) =<< getStdGen)
+                         , bench "5 step sim a"   $ nfIO ((\g -> fmap fst $ runSimulation2 g 5) =<< getStdGen)
+                         , bench "10 step sim a"   $ nfIO ((\g -> fmap fst $ runSimulation2 g 10) =<< getStdGen)
+                         , bench "20 step sim a"   $ nfIO ((\g -> fmap fst $ runSimulation2 g 20) =<< getStdGen)
+                         ]
        ]
 
-runSimulation :: RandomGen g => MonadIO m => g -> Int -> m (Int, g)
-runSimulation g max = flip runRandT g . go 0 . startingState $ g
-    where go :: (MonadRandom m, MonadIO m) => Int -> SimulatorState -> m Int
-          go i s | i >= max  = pure i
-                 | otherwise = do
-                     ms <- stepSimulation i s
-                     case ms of
-                       Nothing -> pure i
-                       Just s' -> go (i + 1) s'
+runSimulation :: RandomGen g => MonadIO m => g -> Int -> m (Reward, g)
+runSimulation g mx = flip runRandT g . simulateU mct mx . gs . startingState $ g
+    where mct = MCTS { linesToReward = fromInteger . toInteger
+                     , stateToReward = const 0
+                     , simulate = const (pure 0)
+                     , lossReward = 0
+                     , gamma = 1
+                     , cp = 1 / sqrt 2
+                     }
 
-
-stepSimulation :: (MonadRandom m, MonadIO m) => Int -> SimulatorState -> m (Maybe SimulatorState)
-stepSimulation i s = monteCarloStep (gs s) >>= go s
-    where go :: (MonadRandom m, MonadIO m) => SimulatorState -> [Action] -> m (Maybe SimulatorState)
-          go s [] = pure (Just s)
-          go s (a:as) = advance i a s >>= \x -> case x of
-                                                    Nothing -> pure Nothing
-                                                    Just (s', _) -> go s' as
+runSimulation2 :: RandomGen g => MonadIO m => g -> Int -> m (Reward, g)
+runSimulation2 g mx = flip runRandT g . simulateA mct mx . gs . startingState $ g
+    where mct = MCTS { linesToReward = fromInteger . toInteger
+                     , stateToReward = const 0
+                     , simulate = const (pure 0)
+                     , lossReward = 0
+                     , gamma = 1
+                     , cp = 1 / sqrt 2
+                     }

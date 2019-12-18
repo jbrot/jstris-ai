@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 98d8789f084a04c10bdbb9f8b5ae4a481fe357502bbe30ee0e1f75c751b80b4c
+-- hash: 4799af0e580aa2c56290ec60b2656773352720be4055519a53087e55832ec4bc
 
 name:           jstris-ai
 version:        0.1.0.0
@@ -117,7 +117,6 @@ benchmark jstris-ai-bench
   type: exitcode-stdio-1.0
   main-is: BenchMain.hs
   other-modules:
-      TestMC
       Paths_jstris_ai
   hs-source-dirs:
       bench
