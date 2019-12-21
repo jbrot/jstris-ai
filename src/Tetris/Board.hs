@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, DerivingVia, PatternSynonyms #-}
 module Tetris.Board ( Square (..)
-                    , Board, emptyBoard, fromSquares, toSquares, getSquare, isEmpty, printBoard
+                    , Board (..), emptyBoard, fromSquares, toSquares, getSquare, isEmpty, printBoard
                     , canAddActiveBlock, validateAB, addActiveBlock
                     , complete, clearLines, addGarbageLines, hurryUp
                     ) where
@@ -21,7 +21,10 @@ import Tetris.Block
 data Square = Empty | Garbage | HurryUp
     deriving (Eq, Ord, Show)
 
-type Board = (Vector 20 Bool,  Vector 20 Word32)
+data Board = Board { rows :: Vector 20 Word32
+                   , hurry :: Vector 20 Bool
+                   , colHeights :: Vector 10 Word8
+                   } deriving (Eq, Ord,  Show)
 
 emptyRow :: Word32
 emptyRow = (maxBound `shiftL` 18) .|. 255
@@ -30,28 +33,35 @@ fullRow :: Word32
 fullRow = maxBound
 
 rowMask :: Int -> Board -> Word32
-rowMask r (_, contents)
+rowMask r b
   | r >= 20 = fullRow
   | r <  0 = emptyRow
-  | otherwise = contents `U.unsafeIndex` r
+  | otherwise = (rows b) `U.unsafeIndex` r
 
 emptyBoard :: Board
-emptyBoard = (U.replicate False, U.replicate emptyRow)
+emptyBoard = Board (U.replicate emptyRow) (U.replicate False) (U.replicate 0)
+
+updateHeight :: Board -> Col -> Board
+updateHeight board c = board{colHeights = (colHeights board) U.// [((fromInteger . toInteger) c, 20 - hind)]}
+    where hind = U.foldr (\r i -> if (r `shiftR` (8 + c)) .&. 1 == 0 then 1 + i else 0) 0 (rows board)
 
 fromSquares :: V.Vector 20 (V.Vector 10 Square) -> Board
-fromSquares v = (U.generate (\n -> (v `V.index` n) `V.index` 0 == HurryUp), U.generate (\n -> encodeRow (v `V.index` n)))
+fromSquares v = foldl updateHeight rawBoard [0..9]
     where encodeRow :: V.Vector 10 Square -> Word32
           encodeRow = (.|. 255) . (`shiftL` 8) . foldr (\s v -> (v `shiftL` 1) .|. (if s == Empty then 0 else 1)) maxBound
+          rawBoard = Board (U.generate (\n -> encodeRow (v `V.index` n)))
+                           (U.generate (\n -> (v `V.index` n) `V.index` 0 == HurryUp))
+                           (U.replicate 0)
 
 toSquares :: Board -> V.Vector 20 (V.Vector 10 Square)
-toSquares (hurry, contents) = V.generate genRow
-  where genRow r = if hurry `U.index` r
-                      then V.replicate HurryUp
-                      else V.unfoldrN (\b -> (if (b .&. 1) == 0 then Empty else Garbage, b `shiftR` 1)) ((contents `U.index` r) `shiftR` 8)
+toSquares board  = V.generate genRow
+    where genRow r = if (hurry board) `U.index` r
+                         then V.replicate HurryUp
+                         else V.unfoldrN (\b -> (if (b .&. 1) == 0 then Empty else Garbage, b `shiftR` 1)) (((rows board) `U.index` r) `shiftR` 8)
 
 getSquare :: Pos -> Board -> Square
 getSquare (r,c) board
-  | r >= 0 && r < 20 && (fst board) `U.unsafeIndex` r = HurryUp
+  | r >= 0 && r < 20 && (hurry board) `U.unsafeIndex` r = HurryUp
   | ((rowMask r board) `shiftR` (8 + c)) .&. 1 == 0 = Empty
   | otherwise = Garbage
 
@@ -71,37 +81,40 @@ validateAB b a = if canAddActiveBlock b a then Just a else Nothing
 -- Replaces the squares in the board the ActiveBlock occupies with the appropriate remnants.
 -- Does not check if spaces are overwritten.
 addActiveBlock :: Board -> ActiveBlock -> Board
-addActiveBlock (hurry, content) ab = (hurry, U.ifoldr upd content mask)
+addActiveBlock board ab = foldl updateHeight rawBoard [max 0 c..min 9 (c + 3)]
     where (r,c) = pos ab
           mask = U.map (`shiftL` (8 + c)) (rotMaskMap M.! (kind ab, rot ab))
           upd i m vc = if i' < 0 || i' >= 20 then vc else U.unsafeUpd vc [(i', (vc `U.unsafeIndex` i') .|. m)]
             where i' = r + (fromInteger . getFinite $ i)
+          rawBoard = board{rows = U.ifoldr upd (rows board) mask}
 
 
 complete :: Board -> Finite 20 -> Bool
-complete (hurry,content) r = (content `U.index` r) + 1 == 0 && not (hurry `U.index` r)
+complete board r = ((rows board) `U.index` r) + 1 == 0 && not ((hurry board) `U.index` r)
 
 clearLines :: Board -> (Int, Board)
 clearLines board = foldr remove (0, board) . filter (complete board) . reverse $ [0..19] 
     where remove :: Finite 20 -> (Int, Board) -> (Int, Board)
-          remove r (c, (hurry, contents)) = (c + 1, (hurry, cts' U.// [(0, emptyRow)]))
+          remove r (c, brd) = (c + 1, brd{rows = rws' U.// [(0, emptyRow)]})
                 where nind 0 = 0
                       nind i = fromInteger . getFinite $ if i <= r then i - 1 else i
                       upd = (U.generate nind) :: Vector 20 Int
-                      cts' = U.backpermute contents upd
+                      rws' = U.backpermute (rows brd) upd
 
 addGarbageLines :: Int -> Col -> Board -> Board
-addGarbageLines n col (hurry,cts) = (hurry, cts' `U.unsafeUpd` [(x, grb_row) | x <- [endI - n .. endI - 1]])
-    where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 hurry
+addGarbageLines n col board = if 20 > col && col >= 0 then updateHeight board' col else board'
+    where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 (hurry board)
           nind i = let i' = fromInteger . getFinite $ i in if i' > (endI - 1 - n) then i' else i' + n
-          cts' = U.backpermute cts ((U.generate nind) :: Vector 20 Int)
+          rws1 = U.backpermute (rows board) ((U.generate nind) :: Vector 20 Int)
+          rws2 = rws1 `U.unsafeUpd` [(x, grb_row) | x <- [endI - n .. endI - 1]]
           grb_row = complement (1 `shiftL` (col + 8))
+          board' = board{rows = rws2, colHeights = U.map (+ (fromInteger . toInteger) n) (colHeights board)}
 
 -- Add `n` hurry up lines to the board.
 hurryUp :: Int -> Board -> Board
 hurryUp n = markHU . addGarbageLines n 32
-    where markHU (h,c) = (h `U.unsafeUpd` [(x, True) | x <- [endI - n .. endI - 1]], c)
-            where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 h
+    where markHU brd = brd{hurry = (hurry brd) `U.unsafeUpd` [(x, True) | x <- [endI - n .. endI - 1]]}
+              where endI = U.foldr (\b i -> if b then 0 else 1 + i) 0 (hurry brd)
 
 printBoard :: Board -> IO ()
 printBoard board = (>> return ()) . sequence . fmap (printRow board) $ [0..19]

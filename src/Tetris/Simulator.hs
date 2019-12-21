@@ -36,7 +36,7 @@ attackLines board combo cleared = cboLines + clearedLines
                        11 -> 4
                        _ -> 5
           mask = 1023 `shiftL` 8
-          clearedLines = if U.all (\r -> r .&. mask == 0) (snd board)
+          clearedLines = if U.all (\r -> r .&. mask == 0) (rows board)
                             then 10
                             else case cleared of 
                                     0 -> 0

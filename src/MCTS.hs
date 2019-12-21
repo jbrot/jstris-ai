@@ -18,6 +18,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum (..))
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed.Sized as U
 
 import Tetris.Action
 import Tetris.Block
@@ -194,7 +195,7 @@ aggregateHeight :: Board -> Int
 aggregateHeight board = sum (height board <$> [0..9])
 
 height :: Board -> Col -> Int
-height board c = (20 -) . head . (<> [20]) . filter (\r -> getSquare (r,c) board /= Empty) $ [0..19]
+height board = fromInteger . toInteger . U.unsafeIndex (colHeights board)
 
 completeLines :: Board -> Int
 completeLines board = length . filter (complete board) $ [0..19]

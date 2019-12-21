@@ -3,6 +3,7 @@ module Tetris.Action (Action (..), dropBlock, moveBlock, moveBlock') where
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe
+import qualified Data.Vector.Unboxed.Sized as U
 
 import Tetris.Block
 import Tetris.Board
@@ -12,8 +13,15 @@ data Action = MoveLeft | MoveRight | SoftDrop | HardDrop | RotateLeft | RotateRi
 
 -- Given an ActiveBlock, returns a new ActiveBlock in the position the current block will drop to.
 -- Will only return Nothing if the current position is invalid.
-dropPosition :: Board -> ActiveBlock -> Maybe ActiveBlock
-dropPosition board = fmap (\a@ActiveBlock{ pos = (r,c) } -> fromMaybe a . dropPosition board $ a{ pos = (r + 1, c) }) . validateAB board
+dropPosition :: Board  -> ActiveBlock -> Maybe ActiveBlock
+dropPosition b a = dropPosition_ b a{pos = (r',c)}
+    where (_,c) = pos a
+          maxHeight :: Int
+          maxHeight = fromInteger . toInteger . maximum . fmap (U.unsafeIndex (colHeights b)) $ [max 0 c..min 9 (c + 3)]
+          r' = maxHeight - 24
+
+dropPosition_ :: Board -> ActiveBlock -> Maybe ActiveBlock
+dropPosition_ board = fmap (\a@ActiveBlock{ pos = (r,c) } -> fromMaybe a . dropPosition_ board $ a{ pos = (r + 1, c) }) . validateAB board
 
 dropBlock :: Board -> ActiveBlock -> Board
 dropBlock board ab = addActiveBlock board . fromMaybe ab . dropPosition board $ ab
