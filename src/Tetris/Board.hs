@@ -8,8 +8,6 @@ module Tetris.Board ( Square (..)
 import Data.Bits
 import Data.Finite
 import Data.Functor.Identity
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import Data.Vector.Unboxed.Sized (Vector)
 import qualified Data.Vector.Unboxed.Sized as U
 import qualified Data.Vector.Sized as V
@@ -21,9 +19,9 @@ import Tetris.Block
 data Square = Empty | Garbage | HurryUp
     deriving (Eq, Ord, Show)
 
-data Board = Board { rows :: Vector 20 Word32
-                   , hurry :: Vector 20 Bool
-                   , colHeights :: Vector 10 Word8
+data Board = Board { rows :: (Vector 20 Word32)
+                   , hurry :: (Vector 20 Bool)
+                   , colHeights :: (Vector 10 Word8)
                    } deriving (Eq, Ord,  Show)
 
 emptyRow :: Word32
@@ -72,7 +70,7 @@ isEmpty b p = getSquare p b == Empty
 canAddActiveBlock :: Board -> ActiveBlock -> Bool 
 canAddActiveBlock board ab = U.ifoldr chk True mask
     where (r,c) = pos ab
-          mask = (rotMaskMap M.! (kind ab, rot ab))
+          mask = rotMaskMap (kind ab) (rot ab)
           chk i m b = if (m `shiftL` (8 + c)) .&. (rowMask (r + (fromInteger . getFinite $ i)) board) == 0 then b else False
 
 validateAB :: Board -> ActiveBlock -> Maybe ActiveBlock
@@ -83,7 +81,7 @@ validateAB b a = if canAddActiveBlock b a then Just a else Nothing
 addActiveBlock :: Board -> ActiveBlock -> Board
 addActiveBlock board ab = foldl updateHeight rawBoard [max 0 c..min 9 (c + 3)]
     where (r,c) = pos ab
-          mask = U.map (`shiftL` (8 + c)) (rotMaskMap M.! (kind ab, rot ab))
+          mask = U.map (`shiftL` (8 + c)) (rotMaskMap (kind ab) (rot ab))
           upd i m vc = if i' < 0 || i' >= 20 then vc else U.unsafeUpd vc [(i', (vc `U.unsafeIndex` i') .|. m)]
             where i' = r + (fromInteger . getFinite $ i)
           rawBoard = board{rows = U.ifoldr upd (rows board) mask}
@@ -144,46 +142,47 @@ colorMap = M.fromList [ (I, ( 15,155,215))
                       ]
 -}
 
-rotMaskMap :: Map (Block, Rot) (Vector 4 Word32)
-rotMaskMap = M.map posToMask rotMap
+rotMaskMap :: Block -> Rot -> Vector 4 Word32
+rotMaskMap b r = posToMask (rotMap b r)
 
 posToMask :: [Pos] -> Vector 4 Word32
 posToMask [] = U.replicate 0
 posToMask ((r,c):ps) = runIdentity $ U.ix (finite . toInteger $ r) (\v -> pure $ v .|. (1 `shiftL` c)) $ posToMask ps
 
-rotMap :: Map (Block, Rot) [Pos]
-rotMap = M.fromList [ ((I, 0), [ (1,0), (1,1), (1,2), (1,3) ])
-                    , ((I, 1), [ (0,2), (1,2), (2,2), (3,2) ])
-                    , ((I, 2), [ (2,0), (2,1), (2,2), (2,3) ])
-                    , ((I, 3), [ (0,1), (1,1), (2,1), (3,1) ])
+rotMap :: Block -> Rot -> [Pos]
+rotMap I 0 = [ (1,0), (1,1), (1,2), (1,3) ]
+rotMap I 1 = [ (0,2), (1,2), (2,2), (3,2) ]
+rotMap I 2 = [ (2,0), (2,1), (2,2), (2,3) ]
+rotMap I 3 = [ (0,1), (1,1), (2,1), (3,1) ]
 
-                    , ((J, 0), [ (1,0), (2,0), (2,1), (2,2) ])
-                    , ((J, 1), [ (1,1), (1,2), (2,1), (3,1) ])
-                    , ((J, 2), [ (2,0), (2,1), (2,2), (3,2) ])
-                    , ((J, 3), [ (3,0), (3,1), (2,1), (1,1) ])
+rotMap J 0 = [ (1,0), (2,0), (2,1), (2,2) ]
+rotMap J 1 = [ (1,1), (1,2), (2,1), (3,1) ]
+rotMap J 2 = [ (2,0), (2,1), (2,2), (3,2) ]
+rotMap J 3 = [ (3,0), (3,1), (2,1), (1,1) ]
 
-                    , ((L, 0), [ (1,2), (2,0), (2,1), (2,2) ])
-                    , ((L, 1), [ (1,1), (3,2), (2,1), (3,1) ])
-                    , ((L, 2), [ (2,0), (2,1), (2,2), (3,0) ])
-                    , ((L, 3), [ (1,0), (3,1), (2,1), (1,1) ])
+rotMap L 0 = [ (1,2), (2,0), (2,1), (2,2) ]
+rotMap L 1 = [ (1,1), (3,2), (2,1), (3,1) ]
+rotMap L 2 = [ (2,0), (2,1), (2,2), (3,0) ]
+rotMap L 3 = [ (1,0), (3,1), (2,1), (1,1) ]
 
-                    , ((O, 0), [ (1,1), (1,2), (2,1), (2,2) ])
-                    , ((O, 1), [ (1,1), (1,2), (2,1), (2,2) ])
-                    , ((O, 2), [ (1,1), (1,2), (2,1), (2,2) ])
-                    , ((O, 3), [ (1,1), (1,2), (2,1), (2,2) ])
+rotMap O 0 = [ (1,1), (1,2), (2,1), (2,2) ]
+rotMap O 1 = [ (1,1), (1,2), (2,1), (2,2) ]
+rotMap O 2 = [ (1,1), (1,2), (2,1), (2,2) ]
+rotMap O 3 = [ (1,1), (1,2), (2,1), (2,2) ]
 
-                    , ((S, 0), [ (2,0), (2,1), (1,1), (1,2) ])
-                    , ((S, 1), [ (1,1), (2,1), (2,2), (3,2) ])
-                    , ((S, 2), [ (3,0), (3,1), (2,1), (2,2) ])
-                    , ((S, 3), [ (1,0), (2,0), (2,1), (3,1) ])
+rotMap S 0 = [ (2,0), (2,1), (1,1), (1,2) ]
+rotMap S 1 = [ (1,1), (2,1), (2,2), (3,2) ]
+rotMap S 2 = [ (3,0), (3,1), (2,1), (2,2) ]
+rotMap S 3 = [ (1,0), (2,0), (2,1), (3,1) ]
 
-                    , ((T, 0), [ (2,0), (2,1), (2,2), (1,1) ])
-                    , ((T, 1), [ (1,1), (2,1), (3,1), (2,2) ])
-                    , ((T, 2), [ (2,0), (2,1), (2,2), (3,1) ])
-                    , ((T, 3), [ (2,0), (1,1), (2,1), (3,1) ])
+rotMap T 0 = [ (2,0), (2,1), (2,2), (1,1) ]
+rotMap T 1 = [ (1,1), (2,1), (3,1), (2,2) ]
+rotMap T 2 = [ (2,0), (2,1), (2,2), (3,1) ]
+rotMap T 3 = [ (2,0), (1,1), (2,1), (3,1) ]
 
-                    , ((Z, 0), [ (1,0), (1,1), (2,1), (2,2) ])
-                    , ((Z, 1), [ (3,1), (2,1), (2,2), (1,2) ])
-                    , ((Z, 2), [ (3,2), (3,1), (2,1), (2,0) ])
-                    , ((Z, 3), [ (3,0), (2,0), (2,1), (1,1) ])
-                    ]
+rotMap Z 0 = [ (1,0), (1,1), (2,1), (2,2) ]
+rotMap Z 1 = [ (3,1), (2,1), (2,2), (1,2) ]
+rotMap Z 2 = [ (3,2), (3,1), (2,1), (2,0) ]
+rotMap Z 3 = [ (3,0), (2,0), (2,1), (1,1) ]
+
+rotMap _ _ = undefined -- Invalid rotation
